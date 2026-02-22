@@ -24,11 +24,15 @@ Mobile (Planned for Sprint 3):
 
 ## Sprint 1 Scope
 
-Backlog items:
+### Backlog items
 - ID 1: User registration & login
 - ID 4: View hire options and cost
 - ID 5: Book an e-scooter
 - ID 12: Cancel booking
+
+### Sprint 1 Plan
+
+![Sprint 1 Gantt](docs/sprint1_gantt.png)
 
 ## Branching Strategy
 
