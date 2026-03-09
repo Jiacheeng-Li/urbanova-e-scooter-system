@@ -16,6 +16,7 @@ urbanova/*.log
 urbanova/*.jar
 urbanova/*.war
 urbanova/.mvn/
+urbanova/src/main/resources/application-local.properties
 
 urbanova-frontend/node_modules/
 urbanova-frontend/dist/
