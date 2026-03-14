@@ -1,16 +1,18 @@
 # Urbanova API Design (Implemented v1)
 
-Last updated: 2026-02-27
+Last updated: 2026-03-14
 
 ## 1. Purpose and Scope
 
 This document describes the **currently implemented** backend APIs in this repository.
 
-Implemented backlog scope:
+Implemented backlog/new scope:
 - ID 1: User registration & login
 - ID 4: View hire options and cost
 - ID 5: Book an e-scooter
 - ID 12: Cancel booking
+- New requirement: booking query and booking modify APIs
+- New requirement: scooter ID query by status
 
 Not yet implemented from the previous full design draft (examples): refresh/logout/password reset, payments, confirmations, staff/manager/admin APIs, analytics.
 
@@ -41,7 +43,7 @@ All endpoints return a unified envelope:
   "data": {},
   "meta": {
     "requestId": "uuid",
-    "timestamp": "2026-02-27T05:00:00Z"
+    "timestamp": "2026-03-14T05:00:00Z"
   }
 }
 ```
@@ -60,7 +62,7 @@ Error envelope:
   },
   "meta": {
     "requestId": "uuid",
-    "timestamp": "2026-02-27T05:00:00Z"
+    "timestamp": "2026-03-14T05:00:00Z"
   }
 }
 ```
@@ -72,16 +74,20 @@ Error envelope:
 
 ## 3. Endpoint Catalog (Implemented)
 
-| Method | Path | Auth | Purpose | Backlog |
-|---|---|---|---|---|
-| POST | `/auth/register` | Public | Register customer account and issue access token | ID1 |
-| POST | `/auth/login` | Public | Login and issue access token | ID1 |
-| GET | `/users/me` | Bearer token | Get current user profile | ID1 |
-| GET | `/hire-options` | Public | List active hire options | ID4 |
-| POST | `/pricing/quotes` | Public | Quote price by hire option code | ID4 |
-| POST | `/bookings` | Bearer token | Create booking for current user | ID5 |
-| POST | `/bookings/{bookingId}/cancel` | Bearer token | Cancel current user's booking | ID12 |
-| GET | `/health` | Public | Health check | Ops |
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| POST | `/auth/register` | Public | Register customer account and issue access token |
+| POST | `/auth/login` | Public | Login and issue access token |
+| GET | `/users/me` | Bearer token | Get current user profile |
+| GET | `/hire-options` | Public | List active hire options |
+| POST | `/pricing/quotes` | Public | Quote price by hire option code |
+| POST | `/bookings` | Bearer token | Create booking for current user |
+| GET | `/bookings` | Bearer token | Query current user's bookings |
+| GET | `/bookings/{bookingId}` | Bearer token | Query booking detail |
+| PATCH | `/bookings/{bookingId}` | Bearer token | Modify booking |
+| POST | `/bookings/{bookingId}/cancel` | Bearer token | Cancel booking |
+| GET | `/scooters/ids` | Public | Query scooter IDs by scooter status |
+| GET | `/health` | Public | Health check |
 
 ## 4. ID1: Auth and Account APIs
 
@@ -135,7 +141,7 @@ Header:
     "role": "CUSTOMER",
     "discountCategory": "NONE",
     "accountStatus": "ACTIVE",
-    "createdAt": "2026-02-27T13:00:00"
+    "createdAt": "2026-03-14T13:00:00"
   }
 }
 ```
@@ -184,7 +190,7 @@ Response `data`:
 }
 ```
 
-## 6. ID5: Create Booking API
+## 6. Booking APIs (Create / Query / Modify / Cancel)
 
 ### 6.1 POST `/api/v1/bookings`
 
@@ -197,7 +203,7 @@ Request:
 {
   "scooterId": "SCO-0001",
   "hireOptionId": "HIRE-H1",
-  "plannedStartAt": "2026-02-27T13:30:00"
+  "plannedStartAt": "2026-03-14T13:30:00"
 }
 ```
 
@@ -217,8 +223,8 @@ Response `data`:
   "bookingId": "BKG-1234abcd",
   "status": "CONFIRMED",
   "scooterStatusSnapshot": "RESERVED",
-  "startAt": "2026-02-27T13:30:00",
-  "endAt": "2026-02-27T14:30:00",
+  "startAt": "2026-03-14T13:30:00",
+  "endAt": "2026-03-14T14:30:00",
   "priceBreakdown": {
     "base": 3.0,
     "discount": 0.0,
@@ -227,9 +233,90 @@ Response `data`:
 }
 ```
 
-## 7. ID12: Cancel Booking API
+### 6.2 GET `/api/v1/bookings`
 
-### 7.1 POST `/api/v1/bookings/{bookingId}/cancel`
+Header:
+- `Authorization: Bearer <access_token>`
+
+Query params:
+- `status` optional, values: `CONFIRMED` / `CANCELLED`
+
+Response `data`:
+
+```json
+[
+  {
+    "bookingId": "BKG-1234abcd",
+    "bookingRef": "REF-1234abcd56",
+    "scooterId": "SCO-0001",
+    "hireOptionId": "HIRE-H1",
+    "status": "CONFIRMED",
+    "startAt": "2026-03-14T13:30:00",
+    "endAt": "2026-03-14T14:30:00",
+    "priceFinal": 3.0,
+    "paymentStatus": "UNPAID",
+    "updatedAt": "2026-03-14T13:00:00"
+  }
+]
+```
+
+### 6.3 GET `/api/v1/bookings/{bookingId}`
+
+Header:
+- `Authorization: Bearer <access_token>`
+
+Behavior:
+- Only booking owner can query detail
+
+Response `data`:
+
+```json
+{
+  "bookingId": "BKG-1234abcd",
+  "bookingRef": "REF-1234abcd56",
+  "customerType": "REGISTERED",
+  "userId": "uuid",
+  "scooterId": "SCO-0001",
+  "hireOptionId": "HIRE-H1",
+  "status": "CONFIRMED",
+  "startAt": "2026-03-14T13:30:00",
+  "endAt": "2026-03-14T14:30:00",
+  "priceBase": 3.0,
+  "priceDiscount": 0.0,
+  "priceFinal": 3.0,
+  "paymentStatus": "UNPAID",
+  "cancelReason": null,
+  "createdAt": "2026-03-14T13:00:00",
+  "updatedAt": "2026-03-14T13:00:00"
+}
+```
+
+### 6.4 PATCH `/api/v1/bookings/{bookingId}`
+
+Header:
+- `Authorization: Bearer <access_token>`
+
+Request (at least one field required):
+
+```json
+{
+  "scooterId": "SCO-0002",
+  "hireOptionId": "H4",
+  "plannedStartAt": "2026-03-14T15:00:00"
+}
+```
+
+Behavior:
+- Only booking owner can modify
+- Only `CONFIRMED` bookings can be modified
+- If scooter is changed, new scooter must be `AVAILABLE`; booking keeps old scooter release + new scooter reserve in one transaction
+- If `hireOptionId` changed, accepts `hire_option_id` or code and recalculates duration/end time/price
+- If `plannedStartAt` changed, end time recalculated from hire option duration
+
+Response `data`:
+- same schema as `GET /api/v1/bookings/{bookingId}`
+
+### 6.5 POST `/api/v1/bookings/{bookingId}/cancel`
 
 Header:
 - `Authorization: Bearer <access_token>`
@@ -254,7 +341,28 @@ Response `data`:
 {
   "bookingId": "BKG-1234abcd",
   "status": "CANCELLED",
-  "cancelledAt": "2026-02-27T13:40:00"
+  "cancelledAt": "2026-03-14T13:40:00"
+}
+```
+
+## 7. Scooter API (Status Filtered ID Query)
+
+### 7.1 GET `/api/v1/scooters/ids`
+
+Query params:
+- `status` required, values:
+  - `AVAILABLE`
+  - `RESERVED`
+  - `IN_USE`
+  - `MAINTENANCE`
+  - `UNAVAILABLE`
+
+Response `data`:
+
+```json
+{
+  "status": "AVAILABLE",
+  "scooterIds": ["SCO-0001", "SCO-0002"]
 }
 ```
 
@@ -264,6 +372,7 @@ Response `data`:
 
 | From | Endpoint | To |
 |---|---|---|
+| `CONFIRMED` | `PATCH /bookings/{bookingId}` | `CONFIRMED` |
 | `CONFIRMED` | `POST /bookings/{bookingId}/cancel` | `CANCELLED` |
 
 ### 8.2 Scooter
@@ -271,6 +380,8 @@ Response `data`:
 | From | Trigger | To |
 |---|---|---|
 | `AVAILABLE` | `POST /bookings` | `RESERVED` |
+| `RESERVED` | `PATCH /bookings/{bookingId}` with scooter changed | `AVAILABLE` |
+| `AVAILABLE` | `PATCH /bookings/{bookingId}` with scooter changed | `RESERVED` |
 | `RESERVED` | `POST /bookings/{bookingId}/cancel` | `AVAILABLE` |
 
 ## 9. Error Codes (Currently Used)
@@ -282,8 +393,8 @@ Response `data`:
 | `AUTH_TOKEN_EXPIRED` | 401 | Access token expired |
 | `AUTH_FORBIDDEN` | 401/403 | Missing token or no permission |
 | `RESOURCE_NOT_FOUND` | 404 | User/scooter/hire option/booking not found |
-| `SCOOTER_NOT_AVAILABLE` | 409 | Scooter is not available for booking |
-| `BOOKING_CONFLICT` | 409 | Booking state conflict during cancel |
+| `SCOOTER_NOT_AVAILABLE` | 409 | Scooter is not available for booking/update |
+| `BOOKING_CONFLICT` | 409 | Booking state conflict during modify/cancel |
 | `INTERNAL_ERROR` | 500 | Unhandled server error |
 
 ## 10. Database (Current Implementation)
@@ -295,4 +406,3 @@ Bootstrapped by Spring SQL init:
 Relevant config:
 - `spring.sql.init.mode=always`
 - `spring.datasource.*` from environment/profile
-
