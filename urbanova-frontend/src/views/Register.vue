@@ -15,10 +15,10 @@
         label-position="top"
         @submit.prevent="handleRegister"
       >
-        <el-form-item label="姓名" prop="fullName">
+        <el-form-item label="用户名" prop="fullName">
           <el-input
             v-model="formData.fullName"
-            placeholder="请输入姓名"
+            placeholder="请输入用户名"
             prefix-icon="User"
             size="large"
           />
@@ -115,8 +115,8 @@ const validateConfirmPassword = (rule, value, callback) => {
 
 const formRules = {
   fullName: [
-    { required: true, message: '请输入姓名', trigger: 'blur' },
-    { max: 100, message: '姓名不能超过100个字符', trigger: 'blur' }
+    { required: true, message: '请输入用户名', trigger: 'blur' },
+    { max: 100, message: '用户名不能超过100个字符', trigger: 'blur' }
   ],
   email: [
     { required: true, message: '请输入邮箱', trigger: 'blur' },

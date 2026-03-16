@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { ElMessageBox } from 'element-plus'
 
 const routes = [
   {
@@ -43,11 +44,32 @@ const router = createRouter({
 })
 
 // 路由守卫 - 检查登录状态
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
   const token = localStorage.getItem('accessToken')
 
+  // 已登录用户访问注册/登录页，跳转到首页
+  if (to.path === '/register' || (to.path === '/login' && token)) {
+    next({ path: '/hire-options' })
+    return
+  }
+
+  // 需要登录的页面但未登录
   if (to.meta.requiresAuth && !token) {
-    next({ name: 'Login', query: { redirect: to.fullPath } })
+    try {
+      await ElMessageBox.confirm(
+        '该内容需要登录才能使用',
+        '提示',
+        {
+          confirmButtonText: '前往登录',
+          cancelButtonText: '取消',
+          type: 'warning'
+        }
+      )
+      next({ name: 'Login', query: { redirect: to.fullPath } })
+    } catch {
+      // 用户点击取消，跳转到首页
+      next({ path: '/hire-options' })
+    }
   } else {
     next()
   }

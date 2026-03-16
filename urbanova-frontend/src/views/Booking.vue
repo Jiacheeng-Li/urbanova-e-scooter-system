@@ -124,7 +124,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { hireOptionsApi, bookingApi } from '../api'
+import { hireOptionsApi, scooterApi, bookingApi } from '../api'
 import { ElMessage } from 'element-plus'
 
 const router = useRouter()
@@ -133,13 +133,7 @@ const formRef = ref(null)
 const loading = ref(false)
 const submitting = ref(false)
 const hireOptions = ref([])
-const availableScooters = ref([
-  { scooterId: 'SCO-0001', status: 'AVAILABLE' },
-  { scooterId: 'SCO-0002', status: 'AVAILABLE' },
-  { scooterId: 'SCO-0003', status: 'AVAILABLE' },
-  { scooterId: 'SCO-0004', status: 'AVAILABLE' },
-  { scooterId: 'SCO-0005', status: 'AVAILABLE' }
-])
+const availableScooters = ref([])
 const successDialogVisible = ref(false)
 const bookingResult = ref({})
 
@@ -205,6 +199,19 @@ const fetchHireOptions = async () => {
   }
 }
 
+const fetchAvailableScooters = async () => {
+  try {
+    const response = await scooterApi.getScooterIdsByStatus('AVAILABLE')
+    const scooterIds = response.data.data.scooterIds || []
+    availableScooters.value = scooterIds.map(id => ({
+      scooterId: id,
+      status: 'AVAILABLE'
+    }))
+  } catch (error) {
+    ElMessage.error('获取可用滑板车失败')
+  }
+}
+
 const handleSubmit = async () => {
   if (!formRef.value) return
 
@@ -259,6 +266,7 @@ const resetForm = () => {
 
 onMounted(() => {
   fetchHireOptions()
+  fetchAvailableScooters()
 })
 </script>
 
