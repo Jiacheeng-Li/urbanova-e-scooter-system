@@ -6,7 +6,7 @@
 | Base URL | http://localhost:8080/api/v1 |
 | Tool | Postman |
 | Endpoints Tested | 7 |
-| Date | 2026/03/08 |
+| Date | 2026/03/18 |
 
 ---
 
@@ -182,7 +182,21 @@ Calculates the actual charge for a given plan code, including any applicable dis
 
 ---
 
-### 7. Create Booking 🔒
+### 7. Scooter List (Supplementary Test)
+
+```
+GET http://localhost:8080/api/v1/scooters/ids?status=AVAILABLE
+```
+
+> ⚠️ This test was added to verify whether a scooter-related endpoint exists in the backend.
+
+| Request | Expected | Actual |
+|---------|----------|--------|
+| Valid Bearer token in headers | HTTP 200, returns available scooters | ✅ |
+
+---
+
+### 8. Create Booking 🔒
 
 ```
 POST http://localhost:8080/api/v1/bookings
@@ -193,28 +207,36 @@ Requires login (Bearer token in headers). Creates a booking record based on the 
 **Request Body (raw → JSON):**
 ```json
 {
-  "hireOptionCode": "H1",
-  "scooterId": "scooter_001"
+  "scooterId": "SCO-0001",
+  "hireOptionId": "H1"
 }
 ```
 
 | ID | Request | Expected | Actual |
 |----|---------|----------|--------|
-| TC-API-21 | Valid token, valid plan code and scooter ID | HTTP 200, returns booking details and bookingId | ❌ `RESOURCE_NOT_FOUND: Scooter not found`. **Root cause: the scooter list endpoint does not exist and there are no scooter records in the database. Full booking flow cannot be tested until the backend provides this endpoint. Marked as blocked — to be retested once resolved.** |
+| TC-API-21 | Valid token, valid plan code and scooter ID | HTTP 200, returns booking details and bookingId | ✅ |
+| TC-API-22 | No Authorization Header | HTTP 401, unauthorized | ✅ |
+| TC-API-23 | Fill in the hireOptionCode with a non-existent value | HTTP 404, indicating that the package does not exist | ✅ |
+| TC-API-24 | The scooterId field is missing | HTTP 400，bad request | ✅ |
+| TC-API-25 | Fill in the "scooterId" for non-existent scooters | HTTP 404 indicates that the scooter does not exist | ✅ |
 
 ---
 
-### 8. Scooter List (Supplementary Test)
+### 9. Cancel Booking
 
 ```
-GET http://localhost:8080/api/v1/scooters
+POST http://localhost:8080/api/v1/bookings/{bookingId}/cancel
 ```
 
-> ⚠️ This test was added to verify whether a scooter-related endpoint exists in the backend.
+Requires login (Bearer token in headers). Cancel a booking record.
 
-| Request | Expected | Actual |
-|---------|----------|--------|
-| Valid Bearer token in headers | HTTP 200, returns list of scooters | ❌ `INTERNAL_ERROR: Unhandled server error`. **Confirmed: this endpoint has not been implemented. This is the root cause of TC-API-21 being blocked.** |
+| ID | Request | Expected | Actual |
+|----|---------|----------|--------|
+| TC-API-26 | Valid token, valid booking ID | HTTP 200, Change status to CANCELLED | ✅ |
+| TC-API-27 | Valid token, invalid booking ID | HTTP 404, Reservation does not exist | ✅ |
+| TC-API-28 | No Authorization Header | HTTP 401, unauthorized | ✅ |
+| TC-API-29 | Try to cancel someone else's reservation (using different account tokens) | HTTP 403, forbidden | ✅ |
+| TC-API-30 | Cancel the cancelled reservation again | HTTP 403, forbidden | ❌ HTTP 200, Change status to CANCELLED |
 
 ---
 
@@ -228,11 +250,12 @@ GET http://localhost:8080/api/v1/scooters
 | Get Current User | 3 | 3 | 0 |
 | List Hire Options | 1 | 1 | 0 |
 | Price Quote | 4 | 4 | 0 |
-| Create Booking | 1 | 0 | 1 (blocked – pending scooter endpoint) |
-| **Total** | **20** | **19** | **1** |
+| Create Booking | 5 | 5 | 0 |
+| Cancel Booking | 5 | 4 | 1 |
+| **Total** | **30** | **29** | **1** |
 
-**Conclusion:** All implemented endpoints respond correctly. Authentication, input validation, and error response formats all behave as expected. The create booking flow is currently blocked due to a missing scooter list endpoint on the backend. Testing will resume once the endpoint is available.
+**Conclusion:** All implemented endpoints respond correctly. Authentication, input validation, and error response formats all behave as expected except the repeated cancel booking test.
 
 ---
 
-Document Date: 2026/03/08
+Document Date: 2026/03/18

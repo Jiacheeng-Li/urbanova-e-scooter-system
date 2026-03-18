@@ -6,7 +6,7 @@
 | Version | V1.0 |
 | Scope | Completed frontend pages: Login, Register, Hire Options, Booking |
 | Test Type | Functional Testing (Manual) |
-| Date | 2026/03/08 |
+| Date | 2026/03/18 |
 
 ---
 
@@ -60,40 +60,52 @@
 |----|----------|-------------|-------|-----------------|---------------|
 | TC-B01 | Complete a booking successfully | Logged in | Select an available scooter, confirm time and plan, submit | Booking succeeds, confirmation or booking ID is displayed | Pass |
 | TC-B02 | Submit without selecting a scooter | Logged in | Do not select a scooter, click Submit directly | Shows "Please select a scooter", submission blocked | Pass |
-| TC-B03 | Redirect to My Bookings after booking | Logged in | Complete a booking successfully | The new booking appears in the My Bookings page | My Bookings page is unavailable — error: `[plugin:vite:vue] Invalid end tag.` |
+| TC-B03 | Redirect to My Bookings after booking | Logged in | Complete a booking successfully | The new booking appears in the My Bookings page | There is no new booking |
 
 ---
 
-## 5. Cross-Page General Tests
+## 5. My-Bookings Tests
+
+**Objective:** Verify that a user can complete the full booking flow, including selecting a scooter, confirming details, submitting, and managing the booking.
+
+| ID | Scenario | Precondition | Steps | Expected Result | Actual Result |
+|----|----------|-------------|-------|-----------------|---------------|
+| TC-M01 | The page is loading normally | Logged in and with reservation records | Enter My-bookings page | Display the list of all booking records of the current user | There is a booking record, but the reservation result is not displayed |
+| TC-M02 | Displayed when there is no booking record | Logged in, no reservations made | DEnter My-bookings page | Display an empty status prompt, "No current reservations available" | Pass |
+| TC-M03 | This page was accessed without logging in | Not logged in | Visit the "My-bookings" URL directly | This content requires login to be used | Pass |
+
+---
+
+## 6. Cross-Page General Tests
 
 **Objective:** Verify route access control, logout behaviour, and common browser interactions.
 
 | ID | Scenario | Precondition | Steps | Expected Result | Actual Result |
 |----|----------|-------------|-------|-----------------|---------------|
-| TC-X01 | Navigation works after login | Logged in | Click each item in the navigation bar | All menu items navigate correctly, no 404 pages | My Bookings page fails to load |
+| TC-X01 | Navigation works after login | Logged in | Click each item in the navigation bar | All menu items navigate correctly, no 404 pages | Pass |
 | TC-X02 | Logout works | Logged in | Click the logout button | Login state is cleared, redirected to home or login page | Pass |
-| TC-X03 | Access protected page after logout | Just logged out | Enter a protected page URL in the address bar | Automatically redirects to login page, content not shown | Does not redirect automatically |
+| TC-X03 | Access protected page after logout | Just logged out | Enter a protected page URL in the address bar | Automatically redirects to login page, content not shown | Pass |
 | TC-X04 | Login state persists on refresh | Logged in | Press F5 to refresh any page | Still logged in after refresh, no redirect to login | Pass |
 | TC-X05 | Browser back button | During normal usage | Click the browser back button | Returns to the previous page with correct content | Pass |
-| TC-X06 | Loading state during page transition | Normal network | Switch between pages quickly | No blank screen or errors, loading indicators work correctly | Pass |
+| TC-X06 | Loading state during page transition | Normal network | Switch between pages quickly | No blank screen or errors, loading indicators work correctly | Everything is normal in the unbooked status. In the booked status and on the My-bookings page, jumping to other pages is not reachable. The url address has been updated but the page content has not been updated. Refreshing to display other pages is needed |
 
 ---
 
-## 6. Test Summary
+## 7. Test Summary
 
-### 6.1 Defect Log
+### 7.1 Defect Log
 
 | Bug ID | Module | Description | Severity | Status |
 |--------|--------|-------------|----------|--------|
 | BUG-001 | Login / Register | Incorrect username or password causes page to refresh with no error message shown | Critical | Open |
 | BUG-002 | Login / Register | Logged-in users can access the Register page directly via URL | Minor | Open |
-| BUG-003 | My Bookings | Page is completely unavailable | Critical | Open |
-| BUG-004 | Login / Register | After logout, navigating directly to a protected URL does not redirect to the login page | Moderate | Open |
+| BUG-003 | My Bookings | In the booked status, there is no record, and jumping to other pages is not reachable  | Critical | Open |
+| BUG-004 | Login / Register | After logout, navigating directly to a protected URL does not redirect to the login page | Moderate | Closed |
 
-### 6.2 Overall Assessment
+### 7.2 Overall Assessment
 
-Core functionality is working as expected. 4 issues were identified, including 2 critical defects. All bugs have been reported to the development team for resolution.
+Core functionality is working as expected. 3 issues were identified, including 2 critical defects. One bug has been closed. All bugs have been reported to the development team for resolution.
 
 ---
 
-Document Date: 2026/03/08
+Document Date: 2026/03/18
