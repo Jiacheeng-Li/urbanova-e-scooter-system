@@ -47,8 +47,8 @@ const router = createRouter({
 router.beforeEach(async (to, from, next) => {
   const token = localStorage.getItem('accessToken')
 
-  // 已登录用户访问注册/登录页，跳转到首页
-  if (to.path === '/register' || (to.path === '/login' && token)) {
+  // 已登录用户访问登录页，跳转到首页
+  if (to.path === '/login' && token) {
     next({ path: '/hire-options' })
     return
   }

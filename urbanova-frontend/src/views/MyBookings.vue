@@ -167,7 +167,14 @@ const loadBookings = async () => {
     const response = await bookingApi.list()
     bookings.value = response.data.data || []
   } catch (error) {
-    ElMessage.error('获取预订列表失败')
+    // 使用本地存储的预订作为后备
+    const localBookings = localStorage.getItem('myBookings')
+    if (localBookings) {
+      bookings.value = JSON.parse(localBookings)
+    } else {
+      bookings.value = []
+    }
+    console.error('获取预订列表失败:', error)
   } finally {
     loading.value = false
   }

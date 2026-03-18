@@ -250,8 +250,9 @@ const goToMyBookings = () => {
   router.push('/my-bookings')
 }
 
-const resetFormAndContinue = () => {
+const resetFormAndContinue = async () => {
   successDialogVisible.value = false
+  await fetchAvailableScooters()
   resetForm()
 }
 
