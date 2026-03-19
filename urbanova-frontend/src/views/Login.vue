@@ -106,6 +106,13 @@ const handleLogin = async () => {
   })
 }
 
+onMounted(() => {
+  // 检查是否有未知错误参数
+  if (route.query.error === 'unknown') {
+    ElMessage.error('发生未知错误，请联系管理员')
+  }
+})
+
 const goToRegister = () => {
   router.push('/register')
 }

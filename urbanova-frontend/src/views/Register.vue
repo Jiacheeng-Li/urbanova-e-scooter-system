@@ -87,7 +87,7 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { ElMessage } from 'element-plus'
@@ -152,6 +152,15 @@ const handleRegister = async () => {
     }
   })
 }
+
+onMounted(() => {
+  // 检查是否已登录
+  const token = localStorage.getItem('accessToken')
+  if (token) {
+    ElMessage.warning('您已登录，无需再次注册')
+    router.push('/hire-options')
+  }
+})
 
 const goToLogin = () => {
   router.push('/login')

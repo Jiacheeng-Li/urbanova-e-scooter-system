@@ -28,10 +28,15 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    const currentPath = window.location.pathname
     if (error.response?.status === 401) {
-      localStorage.removeItem('accessToken')
-      localStorage.removeItem('user')
-      window.location.href = '/login'
+      const isLoginPage = currentPath === '/login'
+      if (isLoginPage) {
+      } else {
+        localStorage.removeItem('accessToken')
+        localStorage.removeItem('user')
+        window.location.href = '/login?error=unknown'
+      }
     }
     return Promise.reject(error)
   }
