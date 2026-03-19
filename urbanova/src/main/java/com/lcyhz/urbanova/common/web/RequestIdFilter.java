@@ -15,6 +15,7 @@ public class RequestIdFilter extends OncePerRequestFilter {
     public static final String REQUEST_ID_ATTR = "requestId";
     public static final String REQUEST_ID_HEADER = "X-Request-Id";
 
+
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,

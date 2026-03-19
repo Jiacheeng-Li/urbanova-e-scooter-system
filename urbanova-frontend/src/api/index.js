@@ -70,12 +70,37 @@ export const hireOptionsApi = {
   }
 }
 
+// ==================== Scooter API ====================
+
+export const scooterApi = {
+  // 根据状态获取滑板车ID列表
+  getScooterIdsByStatus(status) {
+    return api.get('/scooters/ids', { params: { status } })
+  }
+}
+
 // ==================== Booking API (ID 5 & ID 12) ====================
 
 export const bookingApi = {
   // 创建预订
   create(data) {
     return api.post('/bookings', data)
+  },
+
+  // 获取预订列表
+  list(status) {
+    const params = status ? { status } : {}
+    return api.get('/bookings', { params })
+  },
+
+  // 获取预订详情
+  getDetail(bookingId) {
+    return api.get(`/bookings/${bookingId}`)
+  },
+
+  // 更新预订
+  update(bookingId, data) {
+    return api.patch(`/bookings/${bookingId}`, data)
   },
 
   // 取消预订

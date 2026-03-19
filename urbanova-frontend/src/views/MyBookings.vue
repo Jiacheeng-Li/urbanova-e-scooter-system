@@ -96,9 +96,9 @@
               </el-descriptions>
             </el-card>
           </el-col>
-        </el-row-tab-pane>
+        </el-row>
+      </el-tab-pane>
     </el-tabs>
-      </el>
 
     <!-- 取消确认对话框 -->
     <el-dialog
@@ -161,10 +161,22 @@ const getStatusType = (status) => {
   return statusMap[status] || 'info'
 }
 
-const loadBookings = () => {
-  const stored = localStorage.getItem('myBookings')
-  if (stored) {
-    bookings.value = JSON.parse(stored)
+const loadBookings = async () => {
+  loading.value = true
+  try {
+    const response = await bookingApi.list()
+    bookings.value = response.data.data || []
+  } catch (error) {
+    // 使用本地存储的预订作为后备
+    const localBookings = localStorage.getItem('myBookings')
+    if (localBookings) {
+      bookings.value = JSON.parse(localBookings)
+    } else {
+      bookings.value = []
+    }
+    console.error('获取预订列表失败:', error)
+  } finally {
+    loading.value = false
   }
 }
 
@@ -188,22 +200,11 @@ const confirmCancel = async () => {
       { reason: cancelReason.value }
     )
 
-    const result = response.data.data
-
-    const index = bookings.value.findIndex(
-      b => b.bookingId === selectedBooking.value.bookingId
-    )
-    if (index !== -1) {
-      bookings.value[index] = {
-        ...bookings.value[index],
-        status: result.status,
-        cancelledAt: result.cancelledAt
-      }
-      saveBookings()
-    }
-
     cancelDialogVisible.value = false
     ElMessage.success('预订已取消')
+
+    // 重新加载预订列表
+    await loadBookings()
   } catch (error) {
     ElMessage.error(error.response?.data?.error?.message || '取消失败')
   } finally {

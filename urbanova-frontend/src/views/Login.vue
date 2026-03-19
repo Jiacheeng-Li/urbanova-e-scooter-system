@@ -58,7 +58,7 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { ElMessage } from 'element-plus'
@@ -98,6 +98,8 @@ const handleLogin = async () => {
         const redirect = route.query.redirect || '/hire-options'
         router.push(redirect)
       } else {
+        // 登录失败时清空密码
+        formData.password = ''
         ElMessage.error(result.message || '登录失败')
       }
     }
