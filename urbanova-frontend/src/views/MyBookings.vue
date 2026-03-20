@@ -163,18 +163,30 @@ const getStatusType = (status) => {
 
 const loadBookings = async () => {
   loading.value = true
+  // 先显示本地存储的订单，确保页面能正常显示
+  const localBookings = localStorage.getItem('myBookings')
+  if (localBookings) {
+    bookings.value = JSON.parse(localBookings)
+  }
+
   try {
+    // 添加超时控制
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 5000)
+
     const response = await bookingApi.list()
-    bookings.value = response.data.data || []
+    clearTimeout(timeoutId)
+
+    if (response.data?.data) {
+      bookings.value = response.data.data
+      // 更新本地存储
+      localStorage.setItem('myBookings', JSON.stringify(response.data.data))
+    }
   } catch (error) {
-    // 使用本地存储的预订作为后备
-    const localBookings = localStorage.getItem('myBookings')
-    if (localBookings) {
-      bookings.value = JSON.parse(localBookings)
-    } else {
+    // API 失败时，使用本地存储的数据（已在上方设置）
+    if (!localBookings) {
       bookings.value = []
     }
-    console.error('获取预订列表失败:', error)
   } finally {
     loading.value = false
   }

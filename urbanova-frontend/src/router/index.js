@@ -43,6 +43,9 @@ const router = createRouter({
   routes
 })
 
+// 将 router 实例暴露给 window，用于 axios 拦截器
+window.__router__ = router
+
 // 路由守卫 - 检查登录状态
 router.beforeEach(async (to, from, next) => {
   const token = localStorage.getItem('accessToken')

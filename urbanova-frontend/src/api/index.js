@@ -31,7 +31,12 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       localStorage.removeItem('accessToken')
       localStorage.removeItem('user')
-      window.location.href = '/login'
+      // 使用 router 而不是 window.location.href，避免中断 Vue 导航
+      if (window.__router__) {
+        window.__router__.push('/login')
+      } else {
+        window.location.href = '/login'
+      }
     }
     return Promise.reject(error)
   }
