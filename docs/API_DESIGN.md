@@ -1,6 +1,6 @@
 # Urbanova API Design (Implemented v1)
 
-Last updated: 2026-03-14
+Last updated: 2026-04-07
 
 ## 1. Purpose and Scope
 
@@ -13,8 +13,10 @@ Implemented backlog/new scope:
 - ID 12: Cancel booking
 - New requirement: booking query and booking modify APIs
 - New requirement: scooter ID query by status
+- ID 16: Manager hire option and scooter management APIs
+- ID 18: Scooter map location API
 
-Not yet implemented from the previous full design draft (examples): refresh/logout/password reset, payments, confirmations, staff/manager/admin APIs, analytics.
+Not yet implemented from the previous full design draft (examples): refresh/logout/password reset, payments, confirmations, staff APIs, analytics, issue workflow, and discount rules.
 
 ## 2. Global API Conventions
 
@@ -32,6 +34,7 @@ Not yet implemented from the previous full design draft (examples): refresh/logo
 - Protected endpoints require: `Authorization: Bearer <access_token>`
 - JWT access token only (no refresh token endpoint implemented yet)
 - Default token TTL: 15 minutes (`app.jwt.expiration-minutes`)
+- Manager endpoints require authenticated user role `MANAGER`
 
 ### 2.4 Standard Response Envelope
 
@@ -43,7 +46,7 @@ All endpoints return a unified envelope:
   "data": {},
   "meta": {
     "requestId": "uuid",
-    "timestamp": "2026-03-14T05:00:00Z"
+    "timestamp": "2026-04-07T05:00:00Z"
   }
 }
 ```
@@ -62,7 +65,7 @@ Error envelope:
   },
   "meta": {
     "requestId": "uuid",
-    "timestamp": "2026-03-14T05:00:00Z"
+    "timestamp": "2026-04-07T05:00:00Z"
   }
 }
 ```
@@ -87,6 +90,16 @@ Error envelope:
 | PATCH | `/bookings/{bookingId}` | Bearer token | Modify booking |
 | POST | `/bookings/{bookingId}/cancel` | Bearer token | Cancel booking |
 | GET | `/scooters/ids` | Public | Query scooter IDs by scooter status |
+| GET | `/scooters/map-points` | Public | Query tracked scooter map locations |
+| GET | `/admin/hire-options` | Bearer token (`MANAGER`) | Manager view of all hire options |
+| POST | `/admin/hire-options` | Bearer token (`MANAGER`) | Create hire option |
+| PATCH | `/admin/hire-options/{hireOptionId}` | Bearer token (`MANAGER`) | Update hire option duration/price |
+| DELETE | `/admin/hire-options/{hireOptionId}` | Bearer token (`MANAGER`) | Disable hire option |
+| GET | `/admin/scooters` | Bearer token (`MANAGER`) | Manager inventory view |
+| POST | `/admin/scooters` | Bearer token (`MANAGER`) | Add scooter |
+| PATCH | `/admin/scooters/{scooterId}` | Bearer token (`MANAGER`) | Update scooter details |
+| PATCH | `/admin/scooters/{scooterId}/status` | Bearer token (`MANAGER`) | Override scooter status |
+| POST | `/admin/scooters/bulk-status` | Bearer token (`MANAGER`) | Bulk update scooter statuses |
 | GET | `/health` | Public | Health check |
 
 ## 4. ID1: Auth and Account APIs
@@ -141,12 +154,12 @@ Header:
     "role": "CUSTOMER",
     "discountCategory": "NONE",
     "accountStatus": "ACTIVE",
-    "createdAt": "2026-03-14T13:00:00"
+    "createdAt": "2026-04-07T13:00:00"
   }
 }
 ```
 
-## 5. ID4: Hire Options and Pricing APIs
+## 5. ID4 and ID16: Hire Option APIs
 
 ### 5.1 GET `/api/v1/hire-options`
 
@@ -190,6 +203,75 @@ Response `data`:
 }
 ```
 
+### 5.3 GET `/api/v1/admin/hire-options`
+
+Header:
+- `Authorization: Bearer <manager_access_token>`
+
+Behavior:
+- Returns all hire options, including inactive ones
+
+Response `data` item:
+
+```json
+{
+  "hireOptionId": "HIRE-H1",
+  "code": "H1",
+  "durationMinutes": 60,
+  "basePrice": 3.0,
+  "active": true,
+  "createdAt": "2026-04-07T13:00:00",
+  "updatedAt": "2026-04-07T13:00:00"
+}
+```
+
+### 5.4 POST `/api/v1/admin/hire-options`
+
+Header:
+- `Authorization: Bearer <manager_access_token>`
+
+Request:
+
+```json
+{
+  "code": "H2",
+  "durationMinutes": 120,
+  "basePrice": 6.0
+}
+```
+
+Behavior:
+- `code` is normalized to uppercase
+- `hireOptionId` is generated as `HIRE-{CODE}`
+- duplicate `code` or generated `hireOptionId` is rejected
+
+### 5.5 PATCH `/api/v1/admin/hire-options/{hireOptionId}`
+
+Header:
+- `Authorization: Bearer <manager_access_token>`
+
+Request:
+
+```json
+{
+  "durationMinutes": 180,
+  "basePrice": 8.5
+}
+```
+
+Behavior:
+- At least one field required
+- Only `durationMinutes` and `basePrice` are mutable
+
+### 5.6 DELETE `/api/v1/admin/hire-options/{hireOptionId}`
+
+Header:
+- `Authorization: Bearer <manager_access_token>`
+
+Behavior:
+- Soft disable only
+- Returns the disabled hire option payload with `active=false`
+
 ## 6. Booking APIs (Create / Query / Modify / Cancel)
 
 ### 6.1 POST `/api/v1/bookings`
@@ -203,7 +285,7 @@ Request:
 {
   "scooterId": "SCO-0001",
   "hireOptionId": "HIRE-H1",
-  "plannedStartAt": "2026-03-14T13:30:00"
+  "plannedStartAt": "2026-04-07T13:30:00"
 }
 ```
 
@@ -223,8 +305,8 @@ Response `data`:
   "bookingId": "BKG-1234abcd",
   "status": "CONFIRMED",
   "scooterStatusSnapshot": "RESERVED",
-  "startAt": "2026-03-14T13:30:00",
-  "endAt": "2026-03-14T14:30:00",
+  "startAt": "2026-04-07T13:30:00",
+  "endAt": "2026-04-07T14:30:00",
   "priceBreakdown": {
     "base": 3.0,
     "discount": 0.0,
@@ -251,11 +333,11 @@ Response `data`:
     "scooterId": "SCO-0001",
     "hireOptionId": "HIRE-H1",
     "status": "CONFIRMED",
-    "startAt": "2026-03-14T13:30:00",
-    "endAt": "2026-03-14T14:30:00",
+    "startAt": "2026-04-07T13:30:00",
+    "endAt": "2026-04-07T14:30:00",
     "priceFinal": 3.0,
     "paymentStatus": "UNPAID",
-    "updatedAt": "2026-03-14T13:00:00"
+    "updatedAt": "2026-04-07T13:00:00"
   }
 ]
 ```
@@ -279,15 +361,15 @@ Response `data`:
   "scooterId": "SCO-0001",
   "hireOptionId": "HIRE-H1",
   "status": "CONFIRMED",
-  "startAt": "2026-03-14T13:30:00",
-  "endAt": "2026-03-14T14:30:00",
+  "startAt": "2026-04-07T13:30:00",
+  "endAt": "2026-04-07T14:30:00",
   "priceBase": 3.0,
   "priceDiscount": 0.0,
   "priceFinal": 3.0,
   "paymentStatus": "UNPAID",
   "cancelReason": null,
-  "createdAt": "2026-03-14T13:00:00",
-  "updatedAt": "2026-03-14T13:00:00"
+  "createdAt": "2026-04-07T13:00:00",
+  "updatedAt": "2026-04-07T13:00:00"
 }
 ```
 
@@ -302,7 +384,7 @@ Request (at least one field required):
 {
   "scooterId": "SCO-0002",
   "hireOptionId": "H4",
-  "plannedStartAt": "2026-03-14T15:00:00"
+  "plannedStartAt": "2026-04-07T15:00:00"
 }
 ```
 
@@ -341,11 +423,11 @@ Response `data`:
 {
   "bookingId": "BKG-1234abcd",
   "status": "CANCELLED",
-  "cancelledAt": "2026-03-14T13:40:00"
+  "cancelledAt": "2026-04-07T13:40:00"
 }
 ```
 
-## 7. Scooter API (Status Filtered ID Query)
+## 7. ID18 and Scooter Public APIs
 
 ### 7.1 GET `/api/v1/scooters/ids`
 
@@ -366,16 +448,159 @@ Response `data`:
 }
 ```
 
-## 8. State Transitions (Current Implementation)
+### 7.2 GET `/api/v1/scooters/map-points`
 
-### 8.1 Booking
+Behavior:
+- Public endpoint
+- Returns scooters with non-null `lat` and `lng`
+- Ordered by `scooterId`
+
+Response `data`:
+
+```json
+[
+  {
+    "scooterId": "SCO-0001",
+    "status": "AVAILABLE",
+    "batteryPercent": 92,
+    "lat": 51.5074,
+    "lng": -0.1278,
+    "zone": "ZONE-A"
+  }
+]
+```
+
+## 8. ID16: Manager Scooter Management APIs
+
+### 8.1 GET `/api/v1/admin/scooters`
+
+Header:
+- `Authorization: Bearer <manager_access_token>`
+
+Query params:
+- `status` optional, values:
+  - `AVAILABLE`
+  - `RESERVED`
+  - `IN_USE`
+  - `MAINTENANCE`
+  - `UNAVAILABLE`
+
+Response `data` item:
+
+```json
+{
+  "scooterId": "SCO-0001",
+  "status": "AVAILABLE",
+  "batteryPercent": 92,
+  "lat": 51.5074,
+  "lng": -0.1278,
+  "zone": "ZONE-A",
+  "version": 0,
+  "createdAt": "2026-04-07T13:00:00",
+  "updatedAt": "2026-04-07T13:00:00"
+}
+```
+
+### 8.2 POST `/api/v1/admin/scooters`
+
+Header:
+- `Authorization: Bearer <manager_access_token>`
+
+Request:
+
+```json
+{
+  "scooterId": "SCO-0100",
+  "status": "AVAILABLE",
+  "batteryPercent": 100,
+  "lat": 51.501,
+  "lng": -0.141,
+  "zone": "ZONE-D"
+}
+```
+
+Behavior:
+- `scooterId` is normalized to uppercase
+- `status` defaults to `AVAILABLE` if omitted
+- `batteryPercent` defaults to `100` if omitted
+- `lat` and `lng` must be provided together
+
+### 8.3 PATCH `/api/v1/admin/scooters/{scooterId}`
+
+Header:
+- `Authorization: Bearer <manager_access_token>`
+
+Request:
+
+```json
+{
+  "batteryPercent": 84,
+  "lat": 51.502,
+  "lng": -0.142,
+  "zone": "ZONE-E"
+}
+```
+
+Behavior:
+- At least one field required
+- Mutable fields: `batteryPercent`, `lat`, `lng`, `zone`
+- `lat` and `lng` must remain a complete pair after update
+- Successful update increments scooter `version`
+
+### 8.4 PATCH `/api/v1/admin/scooters/{scooterId}/status`
+
+Header:
+- `Authorization: Bearer <manager_access_token>`
+
+Request:
+
+```json
+{
+  "status": "MAINTENANCE"
+}
+```
+
+Behavior:
+- Successful update increments scooter `version`
+
+### 8.5 POST `/api/v1/admin/scooters/bulk-status`
+
+Header:
+- `Authorization: Bearer <manager_access_token>`
+
+Request:
+
+```json
+{
+  "scooterIds": ["SCO-0001", "SCO-0002"],
+  "status": "MAINTENANCE"
+}
+```
+
+Behavior:
+- All scooter IDs must exist, otherwise request fails with `RESOURCE_NOT_FOUND`
+- Successful update increments each scooter `version`
+
+Response `data`:
+
+```json
+{
+  "status": "MAINTENANCE",
+  "updatedCount": 2,
+  "scooterIds": ["SCO-0001", "SCO-0002"]
+}
+```
+
+## 9. State Transitions (Current Implementation)
+
+### 9.1 Booking
 
 | From | Endpoint | To |
 |---|---|---|
 | `CONFIRMED` | `PATCH /bookings/{bookingId}` | `CONFIRMED` |
 | `CONFIRMED` | `POST /bookings/{bookingId}/cancel` | `CANCELLED` |
 
-### 8.2 Scooter
+### 9.2 Scooter
 
 | From | Trigger | To |
 |---|---|---|
@@ -383,8 +608,10 @@ Response `data`:
 | `RESERVED` | `PATCH /bookings/{bookingId}` with scooter changed | `AVAILABLE` |
 | `AVAILABLE` | `PATCH /bookings/{bookingId}` with scooter changed | `RESERVED` |
 | `RESERVED` | `POST /bookings/{bookingId}/cancel` | `AVAILABLE` |
+| any | `PATCH /admin/scooters/{scooterId}/status` | manager-selected status |
+| any | `POST /admin/scooters/bulk-status` | manager-selected status |
 
-## 9. Error Codes (Currently Used)
+## 10. Error Codes (Currently Used)
 
 | Code | HTTP | Meaning |
 |---|---|---|
@@ -397,12 +624,18 @@ Response `data`:
 | `BOOKING_CONFLICT` | 409 | Booking state conflict during modify/cancel |
 | `INTERNAL_ERROR` | 500 | Unhandled server error |
 
-## 10. Database (Current Implementation)
+## 11. Database (Current Implementation)
 
-Bootstrapped by Spring SQL init:
-- `schema.sql`: creates tables `users`, `hire_options`, `scooters`, `bookings`
-- `data.sql`: seeds hire options (`H1/H4/D1/W1`) and scooters (`SCO-0001`..`SCO-0005`)
+Current schema already supports the newly implemented APIs:
+- `users`: stores authenticated user role, including `MANAGER`
+- `hire_options`: used by public pricing APIs and manager hire option management
+- `scooters`: used by public scooter location APIs and manager scooter management
+- `bookings`: used by booking create/query/modify/cancel
 
-Relevant config:
-- `spring.sql.init.mode=always`
-- `spring.datasource.*` from environment/profile
+Current seed data:
+- `data.sql` seeds hire options (`H1/H4/D1/W1`)
+- `data.sql` seeds scooters (`SCO-0001`..`SCO-0005`)
+
+Operational note:
+- No schema change is required for ID16 or ID18
+- To call `/api/v1/admin/**`, the database must contain at least one active user whose `role` is `MANAGER`

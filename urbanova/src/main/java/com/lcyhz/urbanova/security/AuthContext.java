@@ -18,16 +18,26 @@ public final class AuthContext {
         return CURRENT_USER.get();
     }
 
-    public static String getRequiredUserId() {
+    public static AuthUser getRequiredUser() {
         AuthUser authUser = CURRENT_USER.get();
         if (authUser == null) {
             throw new BusinessException(HttpStatus.UNAUTHORIZED.value(), ErrorCodes.AUTH_FORBIDDEN, "Authentication required");
         }
-        return authUser.getUserId();
+        return authUser;
+    }
+
+    public static String getRequiredUserId() {
+        return getRequiredUser().getUserId();
+    }
+
+    public static void requireRole(String role) {
+        AuthUser authUser = getRequiredUser();
+        if (!role.equals(authUser.getRole())) {
+            throw new BusinessException(HttpStatus.FORBIDDEN.value(), ErrorCodes.AUTH_FORBIDDEN, "No permission for this operation");
+        }
     }
 
     public static void clear() {
         CURRENT_USER.remove();
     }
 }
-
