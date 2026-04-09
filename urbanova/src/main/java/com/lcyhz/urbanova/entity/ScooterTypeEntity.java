@@ -5,22 +5,18 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Data
-@TableName("scooters")
-public class ScooterEntity {
+@TableName("scooter_types")
+public class ScooterTypeEntity {
     @TableId(type = IdType.AUTO)
     private Long id;
-    private String scooterId;
     private String typeCode;
-    private String status;
-    private Integer batteryPercent;
-    private BigDecimal lat;
-    private BigDecimal lng;
-    private String zone;
-    private Integer version;
+    private String displayName;
+    private String imageUrl;
+    private String description;
+    private Integer active;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

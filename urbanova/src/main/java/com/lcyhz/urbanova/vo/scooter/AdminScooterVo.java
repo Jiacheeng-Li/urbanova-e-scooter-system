@@ -8,6 +8,9 @@ import java.time.LocalDateTime;
 @Data
 public class AdminScooterVo {
     private String scooterId;
+    private String typeCode;
+    private String typeDisplayName;
+    private String typeImageUrl;
     private String status;
     private Integer batteryPercent;
     private BigDecimal lat;

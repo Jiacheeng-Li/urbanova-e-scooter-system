@@ -9,7 +9,9 @@ import com.lcyhz.urbanova.common.exception.BusinessException;
 import com.lcyhz.urbanova.common.exception.ErrorCodes;
 import com.lcyhz.urbanova.domain.DomainConstants;
 import com.lcyhz.urbanova.entity.ScooterEntity;
+import com.lcyhz.urbanova.entity.ScooterTypeEntity;
 import com.lcyhz.urbanova.mapper.ScooterMapper;
+import com.lcyhz.urbanova.mapper.ScooterTypeMapper;
 import com.lcyhz.urbanova.service.ScooterService;
 import com.lcyhz.urbanova.vo.scooter.AdminScooterVo;
 import com.lcyhz.urbanova.vo.scooter.BulkScooterStatusUpdateVo;
@@ -26,7 +28,9 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 @Service
 @RequiredArgsConstructor
@@ -40,6 +44,7 @@ public class ScooterServiceImpl implements ScooterService {
     );
 
     private final ScooterMapper scooterMapper;
+    private final ScooterTypeMapper scooterTypeMapper;
 
     @Override
     public ScooterIdsByStatusVo queryScooterIdsByStatus(String status) {
@@ -60,12 +65,14 @@ public class ScooterServiceImpl implements ScooterService {
 
     @Override
     public List<ScooterMapPointVo> listMapPoints() {
-        return scooterMapper.selectList(new LambdaQueryWrapper<ScooterEntity>()
-                        .isNotNull(ScooterEntity::getLat)
-                        .isNotNull(ScooterEntity::getLng)
-                        .orderByAsc(ScooterEntity::getScooterId))
+        List<ScooterEntity> scooters = scooterMapper.selectList(new LambdaQueryWrapper<ScooterEntity>()
+                .isNotNull(ScooterEntity::getLat)
+                .isNotNull(ScooterEntity::getLng)
+                .orderByAsc(ScooterEntity::getScooterId));
+        Map<String, ScooterTypeEntity> typeMap = loadScooterTypeMap();
+        return scooters
                 .stream()
-                .map(this::toMapPointVo)
+                .map(scooter -> toMapPointVo(scooter, typeMap.get(scooter.getTypeCode())))
                 .toList();
     }
 
@@ -76,7 +83,9 @@ public class ScooterServiceImpl implements ScooterService {
         if (status != null && !status.isBlank()) {
             query.eq(ScooterEntity::getStatus, normalizeScooterStatus(status));
         }
-        return scooterMapper.selectList(query).stream().map(this::toAdminVo).toList();
+        List<ScooterEntity> scooters = scooterMapper.selectList(query);
+        Map<String, ScooterTypeEntity> typeMap = loadScooterTypeMap();
+        return scooters.stream().map(scooter -> toAdminVo(scooter, typeMap.get(scooter.getTypeCode()))).toList();
     }
 
     @Override
@@ -96,6 +105,7 @@ public class ScooterServiceImpl implements ScooterService {
         LocalDateTime now = LocalDateTime.now();
         ScooterEntity entity = new ScooterEntity();
         entity.setScooterId(scooterId);
+        entity.setTypeCode(requireScooterType(request.getTypeCode()).getTypeCode());
         entity.setStatus(request.getStatus() == null || request.getStatus().isBlank()
                 ? DomainConstants.ScooterStatus.AVAILABLE
                 : normalizeScooterStatus(request.getStatus()));
@@ -107,7 +117,7 @@ public class ScooterServiceImpl implements ScooterService {
         entity.setCreatedAt(now);
         entity.setUpdatedAt(now);
         scooterMapper.insert(entity);
-        return toAdminVo(entity);
+        return toAdminVo(entity, requireScooterType(entity.getTypeCode()));
     }
 
     @Override
@@ -126,6 +136,9 @@ public class ScooterServiceImpl implements ScooterService {
         if (request.getBatteryPercent() != null) {
             entity.setBatteryPercent(request.getBatteryPercent());
         }
+        if (request.getTypeCode() != null) {
+            entity.setTypeCode(requireScooterType(request.getTypeCode()).getTypeCode());
+        }
         if (request.getLat() != null) {
             entity.setLat(request.getLat());
         }
@@ -138,7 +151,7 @@ public class ScooterServiceImpl implements ScooterService {
         entity.setVersion(nextVersion(entity.getVersion()));
         entity.setUpdatedAt(LocalDateTime.now());
         scooterMapper.updateById(entity);
-        return toAdminVo(entity);
+        return toAdminVo(entity, requireScooterType(entity.getTypeCode()));
     }
 
     @Override
@@ -149,7 +162,7 @@ public class ScooterServiceImpl implements ScooterService {
         entity.setVersion(nextVersion(entity.getVersion()));
         entity.setUpdatedAt(LocalDateTime.now());
         scooterMapper.updateById(entity);
-        return toAdminVo(entity);
+        return toAdminVo(entity, requireScooterType(entity.getTypeCode()));
     }
 
     @Override
@@ -198,11 +211,28 @@ public class ScooterServiceImpl implements ScooterService {
         return entity;
     }
 
+    private ScooterTypeEntity requireScooterType(String typeCode) {
+        ScooterTypeEntity entity = scooterTypeMapper.selectOne(new LambdaQueryWrapper<ScooterTypeEntity>()
+                .eq(ScooterTypeEntity::getTypeCode, normalizeTypeCode(typeCode))
+                .eq(ScooterTypeEntity::getActive, 1));
+        if (entity == null) {
+            throw new BusinessException(HttpStatus.NOT_FOUND.value(), ErrorCodes.RESOURCE_NOT_FOUND, "Scooter type not found");
+        }
+        return entity;
+    }
+
     private String normalizeScooterId(String scooterId) {
         if (scooterId == null || scooterId.isBlank()) {
             throw new BusinessException(HttpStatus.BAD_REQUEST.value(), ErrorCodes.VALIDATION_ERROR, "scooterId is required");
         }
         return scooterId.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private String normalizeTypeCode(String typeCode) {
+        if (typeCode == null || typeCode.isBlank()) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST.value(), ErrorCodes.VALIDATION_ERROR, "typeCode is required");
+        }
+        return typeCode.trim().toUpperCase(Locale.ROOT);
     }
 
     private String normalizeScooterStatus(String status) {
@@ -236,9 +266,20 @@ public class ScooterServiceImpl implements ScooterService {
         return version == null ? 1 : version + 1;
     }
 
-    private ScooterMapPointVo toMapPointVo(ScooterEntity entity) {
+    private Map<String, ScooterTypeEntity> loadScooterTypeMap() {
+        return scooterTypeMapper.selectList(new LambdaQueryWrapper<ScooterTypeEntity>())
+                .stream()
+                .collect(java.util.stream.Collectors.toMap(ScooterTypeEntity::getTypeCode, Function.identity()));
+    }
+
+    private ScooterMapPointVo toMapPointVo(ScooterEntity entity, ScooterTypeEntity typeEntity) {
         ScooterMapPointVo vo = new ScooterMapPointVo();
         vo.setScooterId(entity.getScooterId());
+        vo.setTypeCode(entity.getTypeCode());
+        if (typeEntity != null) {
+            vo.setTypeDisplayName(typeEntity.getDisplayName());
+            vo.setTypeImageUrl(typeEntity.getImageUrl());
+        }
         vo.setStatus(entity.getStatus());
         vo.setBatteryPercent(entity.getBatteryPercent());
         vo.setLat(entity.getLat());
@@ -247,9 +288,14 @@ public class ScooterServiceImpl implements ScooterService {
         return vo;
     }
 
-    private AdminScooterVo toAdminVo(ScooterEntity entity) {
+    private AdminScooterVo toAdminVo(ScooterEntity entity, ScooterTypeEntity typeEntity) {
         AdminScooterVo vo = new AdminScooterVo();
         vo.setScooterId(entity.getScooterId());
+        vo.setTypeCode(entity.getTypeCode());
+        if (typeEntity != null) {
+            vo.setTypeDisplayName(typeEntity.getDisplayName());
+            vo.setTypeImageUrl(typeEntity.getImageUrl());
+        }
         vo.setStatus(entity.getStatus());
         vo.setBatteryPercent(entity.getBatteryPercent());
         vo.setLat(entity.getLat());

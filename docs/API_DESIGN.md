@@ -1,6 +1,6 @@
 # Urbanova API Design (Implemented v1)
 
-Last updated: 2026-04-07
+Last updated: 2026-04-09
 
 ## 1. Purpose and Scope
 
@@ -11,10 +11,10 @@ Implemented backlog/new scope:
 - ID 4: View hire options and cost
 - ID 5: Book an e-scooter
 - ID 12: Cancel booking
-- New requirement: booking query and booking modify APIs
-- New requirement: scooter ID query by status
+- Booking query and booking modify APIs
 - ID 16: Manager hire option and scooter management APIs
 - ID 18: Scooter map location API
+- Scooter type catalog with static image URLs
 
 Not yet implemented from the previous full design draft (examples): refresh/logout/password reset, payments, confirmations, staff APIs, analytics, issue workflow, and discount rules.
 
@@ -46,7 +46,7 @@ All endpoints return a unified envelope:
   "data": {},
   "meta": {
     "requestId": "uuid",
-    "timestamp": "2026-04-07T05:00:00Z"
+    "timestamp": "2026-04-09T05:00:00Z"
   }
 }
 ```
@@ -65,7 +65,7 @@ Error envelope:
   },
   "meta": {
     "requestId": "uuid",
-    "timestamp": "2026-04-07T05:00:00Z"
+    "timestamp": "2026-04-09T05:00:00Z"
   }
 }
 ```
@@ -74,6 +74,11 @@ Error envelope:
 
 - Date-time fields are serialized from backend `LocalDateTime`
 - Currency used in pricing responses: `GBP`
+
+### 2.6 Static Images
+
+- Scooter type images are served by Spring Boot static resources
+- Current URL pattern: `/images/scooter-types/{slug}.png`
 
 ## 3. Endpoint Catalog (Implemented)
 
@@ -90,7 +95,13 @@ Error envelope:
 | PATCH | `/bookings/{bookingId}` | Bearer token | Modify booking |
 | POST | `/bookings/{bookingId}/cancel` | Bearer token | Cancel booking |
 | GET | `/scooters/ids` | Public | Query scooter IDs by scooter status |
-| GET | `/scooters/map-points` | Public | Query tracked scooter map locations |
+| GET | `/scooters/map-points` | Public | Query tracked scooter map locations with scooter type info |
+| GET | `/scooter-types` | Public | List active scooter types |
+| GET | `/scooter-types/{typeCode}` | Public | Get scooter type detail |
+| GET | `/admin/scooter-types` | Bearer token (`MANAGER`) | Manager view of all scooter types |
+| POST | `/admin/scooter-types` | Bearer token (`MANAGER`) | Create scooter type |
+| PATCH | `/admin/scooter-types/{typeCode}` | Bearer token (`MANAGER`) | Update scooter type metadata |
+| DELETE | `/admin/scooter-types/{typeCode}` | Bearer token (`MANAGER`) | Disable scooter type |
 | GET | `/admin/hire-options` | Bearer token (`MANAGER`) | Manager view of all hire options |
 | POST | `/admin/hire-options` | Bearer token (`MANAGER`) | Create hire option |
 | PATCH | `/admin/hire-options/{hireOptionId}` | Bearer token (`MANAGER`) | Update hire option duration/price |
@@ -154,12 +165,12 @@ Header:
     "role": "CUSTOMER",
     "discountCategory": "NONE",
     "accountStatus": "ACTIVE",
-    "createdAt": "2026-04-07T13:00:00"
+    "createdAt": "2026-04-09T13:00:00"
   }
 }
 ```
 
-## 5. ID4 and ID16: Hire Option APIs
+## 5. Hire Option APIs
 
 ### 5.1 GET `/api/v1/hire-options`
 
@@ -220,8 +231,8 @@ Response `data` item:
   "durationMinutes": 60,
   "basePrice": 3.0,
   "active": true,
-  "createdAt": "2026-04-07T13:00:00",
-  "updatedAt": "2026-04-07T13:00:00"
+  "createdAt": "2026-04-09T13:00:00",
+  "updatedAt": "2026-04-09T13:00:00"
 }
 ```
 
@@ -285,7 +296,7 @@ Request:
 {
   "scooterId": "SCO-0001",
   "hireOptionId": "HIRE-H1",
-  "plannedStartAt": "2026-04-07T13:30:00"
+  "plannedStartAt": "2026-04-09T13:30:00"
 }
 ```
 
@@ -305,8 +316,8 @@ Response `data`:
   "bookingId": "BKG-1234abcd",
   "status": "CONFIRMED",
   "scooterStatusSnapshot": "RESERVED",
-  "startAt": "2026-04-07T13:30:00",
-  "endAt": "2026-04-07T14:30:00",
+  "startAt": "2026-04-09T13:30:00",
+  "endAt": "2026-04-09T14:30:00",
   "priceBreakdown": {
     "base": 3.0,
     "discount": 0.0,
@@ -323,25 +334,6 @@ Header:
 Query params:
 - `status` optional, values: `CONFIRMED` / `CANCELLED`
 
-Response `data`:
-
-```json
-[
-  {
-    "bookingId": "BKG-1234abcd",
-    "bookingRef": "REF-1234abcd56",
-    "scooterId": "SCO-0001",
-    "hireOptionId": "HIRE-H1",
-    "status": "CONFIRMED",
-    "startAt": "2026-04-07T13:30:00",
-    "endAt": "2026-04-07T14:30:00",
-    "priceFinal": 3.0,
-    "paymentStatus": "UNPAID",
-    "updatedAt": "2026-04-07T13:00:00"
-  }
-]
-```
-
 ### 6.3 GET `/api/v1/bookings/{bookingId}`
 
 Header:
@@ -349,29 +341,6 @@ Header:
 
 Behavior:
 - Only booking owner can query detail
-
-Response `data`:
-
-```json
-{
-  "bookingId": "BKG-1234abcd",
-  "bookingRef": "REF-1234abcd56",
-  "customerType": "REGISTERED",
-  "userId": "uuid",
-  "scooterId": "SCO-0001",
-  "hireOptionId": "HIRE-H1",
-  "status": "CONFIRMED",
-  "startAt": "2026-04-07T13:30:00",
-  "endAt": "2026-04-07T14:30:00",
-  "priceBase": 3.0,
-  "priceDiscount": 0.0,
-  "priceFinal": 3.0,
-  "paymentStatus": "UNPAID",
-  "cancelReason": null,
-  "createdAt": "2026-04-07T13:00:00",
-  "updatedAt": "2026-04-07T13:00:00"
-}
-```
 
 ### 6.4 PATCH `/api/v1/bookings/{bookingId}`
 
@@ -384,19 +353,9 @@ Request (at least one field required):
 {
   "scooterId": "SCO-0002",
   "hireOptionId": "H4",
-  "plannedStartAt": "2026-04-07T15:00:00"
+  "plannedStartAt": "2026-04-09T15:00:00"
 }
 ```
-
-Behavior:
-- Only booking owner can modify
-- Only `CONFIRMED` bookings can be modified
-- If scooter is changed, new scooter must be `AVAILABLE`; booking keeps old scooter release + new scooter reserve in one transaction
-- If `hireOptionId` changed, accepts `hire_option_id` or code and recalculates duration/end time/price
-- If `plannedStartAt` changed, end time recalculated from hire option duration
-
-Response `data`:
-- same schema as `GET /api/v1/bookings/{bookingId}`
 
 ### 6.5 POST `/api/v1/bookings/{bookingId}/cancel`
 
@@ -411,25 +370,123 @@ Request body is optional. If provided:
 }
 ```
 
+## 7. Scooter Type APIs
+
+### 7.1 GET `/api/v1/scooter-types`
+
 Behavior:
-- Only booking owner can cancel
-- Only `CONFIRMED` bookings can transition to `CANCELLED`
-- Cancelling releases scooter from `RESERVED` to `AVAILABLE`
-- If already `CANCELLED`, API returns cancelled state directly
+- Public endpoint
+- Returns active scooter types only
+
+Response `data`:
+
+```json
+[
+  {
+    "typeCode": "ANDROMEDA",
+    "displayName": "ANDROMEDA",
+    "imageUrl": "/images/scooter-types/andromeda.png",
+    "description": "High-performance urban scooter.",
+    "active": true
+  }
+]
+```
+
+### 7.2 GET `/api/v1/scooter-types/{typeCode}`
+
+Behavior:
+- Public endpoint
+- `typeCode` is case-insensitive and normalized to uppercase
 
 Response `data`:
 
 ```json
 {
-  "bookingId": "BKG-1234abcd",
-  "status": "CANCELLED",
-  "cancelledAt": "2026-04-07T13:40:00"
+  "typeCode": "GALAXY_SEAT",
+  "displayName": "GALAXY Seat",
+  "imageUrl": "/images/scooter-types/galaxy-seat.png",
+  "description": "Comfort-focused seated scooter.",
+  "active": true
 }
 ```
 
-## 7. ID18 and Scooter Public APIs
+### 7.3 GET `/api/v1/admin/scooter-types`
 
-### 7.1 GET `/api/v1/scooters/ids`
+Header:
+- `Authorization: Bearer <manager_access_token>`
+
+Behavior:
+- Returns all scooter types, including inactive ones
+
+Response `data`:
+
+```json
+[
+  {
+    "typeCode": "ANDROMEDA",
+    "displayName": "ANDROMEDA",
+    "imageUrl": "/images/scooter-types/andromeda.png",
+    "description": "High-performance urban scooter.",
+    "active": true,
+    "createdAt": "2026-04-10T13:00:00",
+    "updatedAt": "2026-04-10T13:00:00"
+  }
+]
+```
+
+### 7.4 POST `/api/v1/admin/scooter-types`
+
+Header:
+- `Authorization: Bearer <manager_access_token>`
+
+Request:
+
+```json
+{
+  "typeCode": "SOLAR_X",
+  "displayName": "SOLAR X",
+  "imageUrl": "/images/scooter-types/solar-x.png",
+  "description": "Compact city scooter."
+}
+```
+
+Behavior:
+- `typeCode` is normalized to uppercase
+- duplicate `typeCode` is rejected
+- image file management is external to this endpoint; the API stores metadata only
+
+### 7.5 PATCH `/api/v1/admin/scooter-types/{typeCode}`
+
+Header:
+- `Authorization: Bearer <manager_access_token>`
+
+Request:
+
+```json
+{
+  "displayName": "GALAXY Seat Pro",
+  "imageUrl": "/images/scooter-types/galaxy-seat-pro.png",
+  "description": "Updated comfort-focused seated scooter."
+}
+```
+
+Behavior:
+- At least one field required
+- Mutable fields: `displayName`, `imageUrl`, `description`
+
+### 7.6 DELETE `/api/v1/admin/scooter-types/{typeCode}`
+
+Header:
+- `Authorization: Bearer <manager_access_token>`
+
+Behavior:
+- Soft disable only
+- Existing scooters retain their `typeCode`
+- Public `/scooter-types` no longer returns the disabled type
+
+## 8. Scooter Public APIs
+
+### 8.1 GET `/api/v1/scooters/ids`
 
 Query params:
 - `status` required, values:
@@ -448,7 +505,7 @@ Response `data`:
 }
 ```
 
-### 7.2 GET `/api/v1/scooters/map-points`
+### 8.2 GET `/api/v1/scooters/map-points`
 
 Behavior:
 - Public endpoint
@@ -461,6 +518,9 @@ Response `data`:
 [
   {
     "scooterId": "SCO-0001",
+    "typeCode": "ANDROMEDA",
+    "typeDisplayName": "ANDROMEDA",
+    "typeImageUrl": "/images/scooter-types/andromeda.png",
     "status": "AVAILABLE",
     "batteryPercent": 92,
     "lat": 51.5074,
@@ -470,9 +530,9 @@ Response `data`:
 ]
 ```
 
-## 8. ID16: Manager Scooter Management APIs
+## 9. Manager Scooter Management APIs
 
-### 8.1 GET `/api/v1/admin/scooters`
+### 9.1 GET `/api/v1/admin/scooters`
 
 Header:
 - `Authorization: Bearer <manager_access_token>`
@@ -490,18 +550,21 @@ Response `data` item:
 ```json
 {
   "scooterId": "SCO-0001",
+  "typeCode": "ANDROMEDA",
+  "typeDisplayName": "ANDROMEDA",
+  "typeImageUrl": "/images/scooter-types/andromeda.png",
   "status": "AVAILABLE",
   "batteryPercent": 92,
   "lat": 51.5074,
   "lng": -0.1278,
   "zone": "ZONE-A",
   "version": 0,
-  "createdAt": "2026-04-07T13:00:00",
-  "updatedAt": "2026-04-07T13:00:00"
+  "createdAt": "2026-04-09T13:00:00",
+  "updatedAt": "2026-04-09T13:00:00"
 }
 ```
 
-### 8.2 POST `/api/v1/admin/scooters`
+### 9.2 POST `/api/v1/admin/scooters`
 
 Header:
 - `Authorization: Bearer <manager_access_token>`
@@ -511,6 +574,7 @@ Request:
 ```json
 {
   "scooterId": "SCO-0100",
+  "typeCode": "ANDROMEDA",
   "status": "AVAILABLE",
   "batteryPercent": 100,
   "lat": 51.501,
@@ -521,11 +585,12 @@ Request:
 
 Behavior:
 - `scooterId` is normalized to uppercase
+- `typeCode` must match an active scooter type
 - `status` defaults to `AVAILABLE` if omitted
 - `batteryPercent` defaults to `100` if omitted
 - `lat` and `lng` must be provided together
 
-### 8.3 PATCH `/api/v1/admin/scooters/{scooterId}`
+### 9.3 PATCH `/api/v1/admin/scooters/{scooterId}`
 
 Header:
 - `Authorization: Bearer <manager_access_token>`
@@ -534,6 +599,7 @@ Request:
 
 ```json
 {
+  "typeCode": "ORION_ULTRA",
   "batteryPercent": 84,
   "lat": 51.502,
   "lng": -0.142,
@@ -543,11 +609,12 @@ Request:
 
 Behavior:
 - At least one field required
-- Mutable fields: `batteryPercent`, `lat`, `lng`, `zone`
+- Mutable fields: `typeCode`, `batteryPercent`, `lat`, `lng`, `zone`
+- `typeCode`, if present, must match an active scooter type
 - `lat` and `lng` must remain a complete pair after update
 - Successful update increments scooter `version`
 
-### 8.4 PATCH `/api/v1/admin/scooters/{scooterId}/status`
+### 9.4 PATCH `/api/v1/admin/scooters/{scooterId}/status`
 
 Header:
 - `Authorization: Bearer <manager_access_token>`
@@ -563,7 +630,7 @@ Request:
 Behavior:
 - Successful update increments scooter `version`
 
-### 8.5 POST `/api/v1/admin/scooters/bulk-status`
+### 9.5 POST `/api/v1/admin/scooters/bulk-status`
 
 Header:
 - `Authorization: Bearer <manager_access_token>`
@@ -591,16 +658,16 @@ Response `data`:
 }
 ```
 
-## 9. State Transitions (Current Implementation)
+## 10. State Transitions (Current Implementation)
 
-### 9.1 Booking
+### 10.1 Booking
 
 | From | Endpoint | To |
 |---|---|---|
 | `CONFIRMED` | `PATCH /bookings/{bookingId}` | `CONFIRMED` |
 | `CONFIRMED` | `POST /bookings/{bookingId}/cancel` | `CANCELLED` |
 
-### 9.2 Scooter
+### 10.2 Scooter
 
 | From | Trigger | To |
 |---|---|---|
@@ -611,7 +678,7 @@ Response `data`:
 | any | `PATCH /admin/scooters/{scooterId}/status` | manager-selected status |
 | any | `POST /admin/scooters/bulk-status` | manager-selected status |
 
-## 10. Error Codes (Currently Used)
+## 11. Error Codes (Currently Used)
 
 | Code | HTTP | Meaning |
 |---|---|---|
@@ -619,23 +686,29 @@ Response `data`:
 | `AUTH_INVALID_CREDENTIALS` | 401 | Invalid login/token/user |
 | `AUTH_TOKEN_EXPIRED` | 401 | Access token expired |
 | `AUTH_FORBIDDEN` | 401/403 | Missing token or no permission |
-| `RESOURCE_NOT_FOUND` | 404 | User/scooter/hire option/booking not found |
+| `RESOURCE_NOT_FOUND` | 404 | User/scooter/hire option/booking/scooter type not found |
 | `SCOOTER_NOT_AVAILABLE` | 409 | Scooter is not available for booking/update |
 | `BOOKING_CONFLICT` | 409 | Booking state conflict during modify/cancel |
 | `INTERNAL_ERROR` | 500 | Unhandled server error |
 
-## 11. Database (Current Implementation)
+## 12. Database (Current Implementation)
 
-Current schema already supports the newly implemented APIs:
-- `users`: stores authenticated user role, including `MANAGER`
-- `hire_options`: used by public pricing APIs and manager hire option management
-- `scooters`: used by public scooter location APIs and manager scooter management
-- `bookings`: used by booking create/query/modify/cancel
+Current tables used by the backend:
+- `users`
+- `hire_options`
+- `scooter_types`
+- `scooters`
+- `bookings`
 
-Current seed data:
-- `data.sql` seeds hire options (`H1/H4/D1/W1`)
-- `data.sql` seeds scooters (`SCO-0001`..`SCO-0005`)
+Current scooter type design:
+- `scooter_types.type_code` is the stable type identifier
+- `scooters.type_code` references `scooter_types.type_code`
+- images are stored as static files, while `scooter_types.image_url` stores the public path
+- manager scooter type APIs update metadata in `scooter_types`
 
-Operational note:
-- No schema change is required for ID16 or ID18
-- To call `/api/v1/admin/**`, the database must contain at least one active user whose `role` is `MANAGER`
+Current seeded scooter types:
+- `ANDROMEDA`
+- `GALAXY_SEAT`
+- `LUNAR_LITE`
+- `NEBULA_FAMILY`
+- `ORION_ULTRA`
