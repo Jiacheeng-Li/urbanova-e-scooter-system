@@ -14,6 +14,8 @@ public class CreateScooterRequest {
     @Size(max = 32, message = "scooterId length must not exceed 32")
     private String scooterId;
 
+    private String typeCode;
+
     @Size(max = 20, message = "status length must not exceed 20")
     private String status;
 
@@ -26,4 +28,6 @@ public class CreateScooterRequest {
 
     @Size(max = 80, message = "zone length must not exceed 80")
     private String zone;
+
+    private String color;
 }

@@ -8,12 +8,14 @@ import java.time.LocalDateTime;
 @Data
 public class AdminScooterVo {
     private String scooterId;
+    private String typeCode;
     private String status;
     private Integer batteryPercent;
     private BigDecimal lat;
     private BigDecimal lng;
     private String zone;
     private Integer version;
+    private String color;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

@@ -88,7 +88,8 @@ public class ScooterServiceImpl implements ScooterService {
         if (existing != null) {
             throw new BusinessException(HttpStatus.BAD_REQUEST.value(), ErrorCodes.VALIDATION_ERROR, "Scooter already exists");
         }
-
+        String typeCode = request.getTypeCode();
+        String color = request.getColor();
         BigDecimal lat = request.getLat();
         BigDecimal lng = request.getLng();
         validateCoordinates(lat, lng);
@@ -96,6 +97,8 @@ public class ScooterServiceImpl implements ScooterService {
         LocalDateTime now = LocalDateTime.now();
         ScooterEntity entity = new ScooterEntity();
         entity.setScooterId(scooterId);
+        entity.setTypeCode(typeCode);
+        entity.setColor(color);
         entity.setStatus(request.getStatus() == null || request.getStatus().isBlank()
                 ? DomainConstants.ScooterStatus.AVAILABLE
                 : normalizeScooterStatus(request.getStatus()));
@@ -122,6 +125,14 @@ public class ScooterServiceImpl implements ScooterService {
         BigDecimal effectiveLat = request.getLat() != null ? request.getLat() : entity.getLat();
         BigDecimal effectiveLng = request.getLng() != null ? request.getLng() : entity.getLng();
         validateCoordinates(effectiveLat, effectiveLng);
+
+        if (request.getTypeCode() != null) {
+            entity.setTypeCode(request.getTypeCode());
+        }
+
+        if (request.getColor() != null) {
+            entity.setColor(request.getColor());
+        }
 
         if (request.getBatteryPercent() != null) {
             entity.setBatteryPercent(request.getBatteryPercent());
@@ -250,6 +261,8 @@ public class ScooterServiceImpl implements ScooterService {
     private AdminScooterVo toAdminVo(ScooterEntity entity) {
         AdminScooterVo vo = new AdminScooterVo();
         vo.setScooterId(entity.getScooterId());
+        vo.setTypeCode(entity.getTypeCode());
+        vo.setColor(entity.getColor());
         vo.setStatus(entity.getStatus());
         vo.setBatteryPercent(entity.getBatteryPercent());
         vo.setLat(entity.getLat());

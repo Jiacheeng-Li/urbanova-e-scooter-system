@@ -13,11 +13,15 @@ public class UpdateScooterRequest {
     @Max(value = 100, message = "batteryPercent must be between 0 and 100")
     private Integer batteryPercent;
 
+    private String typeCode;
+
     private BigDecimal lat;
     private BigDecimal lng;
 
     @Size(max = 80, message = "zone length must not exceed 80")
     private String zone;
+
+    private String color;
 
     public boolean hasAnyField() {
         return batteryPercent != null || lat != null || lng != null || zone != null;

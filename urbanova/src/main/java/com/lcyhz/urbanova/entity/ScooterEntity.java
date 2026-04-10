@@ -14,12 +14,14 @@ public class ScooterEntity {
     @TableId(type = IdType.AUTO)
     private Long id;
     private String scooterId;
+    private String typeCode;
     private String status;
     private Integer batteryPercent;
     private BigDecimal lat;
     private BigDecimal lng;
     private String zone;
     private Integer version;
+    private String color;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

@@ -35,6 +35,37 @@ const routes = [
     name: 'MyBookings',
     component: () => import('../views/MyBookings.vue'),
     meta: { title: '我的预订', requiresAuth: true }
+  },
+  {
+    path: '/admin',
+    name: 'Admin',
+    component: () => import('../views/admin/Dashboard.vue'),
+    meta: { 
+      title: '管理后台', 
+      requiresAuth: true,
+      requiresManager: true
+    },
+    redirect: '/admin/dashboard',
+    children: [
+      {
+        path: 'dashboard',
+        name: 'AdminDashboard',
+        component: () => import('../views/admin/DashboardContent.vue'),
+        meta: { title: '仪表盘' }
+      },
+      {
+        path: 'hire-options',
+        name: 'AdminHireOptions',
+        component: () => import('../views/admin/HireOptionManage.vue'),
+        meta: { title: '租赁选项管理' }
+      },
+      {
+        path: 'scooters',
+        name: 'AdminScooters',
+        component: () => import('../views/admin/ScooterManage.vue'),
+        meta: { title: '滑板车管理' }
+      }
+    ]
   }
 ]
 
