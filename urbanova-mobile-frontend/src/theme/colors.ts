@@ -1,0 +1,18 @@
+export const colors = {
+  lime: '#836FFF',
+  limeDark: '#5B4AE6',
+  limeMuted: '#B7A6FF',
+  ink: '#050905',
+  charcoal: '#0C120A',
+  graphite: '#151C14',
+  surface: '#1C231B',
+  card: '#222A21',
+  border: '#2F3A2E',
+  textPrimary: '#F4FFF2',
+  textSecondary: '#B7C8B6',
+  textMuted: '#7A8A78',
+  warning: '#FFD447',
+  danger: '#F45B69',
+  info: '#4DD0E1',
+  success: '#3CE680',
+};
