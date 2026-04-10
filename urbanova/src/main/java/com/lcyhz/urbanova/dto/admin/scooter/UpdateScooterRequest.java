@@ -9,6 +9,9 @@ import java.math.BigDecimal;
 
 @Data
 public class UpdateScooterRequest {
+    @Size(max = 40, message = "typeCode length must not exceed 40")
+    private String typeCode;
+
     @Min(value = 0, message = "batteryPercent must be between 0 and 100")
     @Max(value = 100, message = "batteryPercent must be between 0 and 100")
     private Integer batteryPercent;
@@ -24,6 +27,6 @@ public class UpdateScooterRequest {
     private String color;
 
     public boolean hasAnyField() {
-        return batteryPercent != null || lat != null || lng != null || zone != null;
+        return typeCode != null || batteryPercent != null || lat != null || lng != null || zone != null;
     }
 }

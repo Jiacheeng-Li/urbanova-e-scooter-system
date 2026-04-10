@@ -14,6 +14,8 @@ public class CreateScooterRequest {
     @Size(max = 32, message = "scooterId length must not exceed 32")
     private String scooterId;
 
+    @NotBlank(message = "typeCode is required")
+    @Size(max = 40, message = "typeCode length must not exceed 40")
     private String typeCode;
 
     @Size(max = 20, message = "status length must not exceed 20")

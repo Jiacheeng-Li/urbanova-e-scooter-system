@@ -71,6 +71,12 @@ public class AuthInterceptor implements HandlerInterceptor {
         if ("GET".equalsIgnoreCase(method) && "/api/v1/scooters/map-points".equals(path)) {
             return true;
         }
+        if ("GET".equalsIgnoreCase(method) && "/api/v1/scooter-types".equals(path)) {
+            return true;
+        }
+        if ("GET".equalsIgnoreCase(method) && path.startsWith("/api/v1/scooter-types/")) {
+            return true;
+        }
         if ("POST".equalsIgnoreCase(method) && "/api/v1/pricing/quotes".equals(path)) {
             return true;
         }
