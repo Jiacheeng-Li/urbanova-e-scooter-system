@@ -1,71 +1,83 @@
 <template>
   <div id="app">
-    <el-container class="app-container">
-      <el-header class="app-header">
-        <div class="header-content">
-          <router-link to="/" class="logo">
-            <h1>Urbanova</h1>
-          </router-link>
+    <!-- 只在非管理端页面显示用户端导航栏 -->
+    <template v-if="!isAdminRoute">
+      <el-container class="app-container">
+        <el-header class="app-header">
+          <div class="header-content">
+            <router-link to="/" class="logo">
+              <h1>Urbanova</h1>
+            </router-link>
 
-          <el-menu
-            mode="horizontal"
-            :router="true"
-            :default-active="currentRoute"
-            class="header-menu"
-          >
-            <el-menu-item index="/hire-options">
-              <el-icon><Tickets /></el-icon>
-              租赁选项
-            </el-menu-item>
+            <el-menu
+              mode="horizontal"
+              :router="true"
+              :default-active="currentRoute"
+              class="header-menu"
+            >
+              <el-menu-item index="/hire-options">
+                <el-icon><Tickets /></el-icon>
+                租赁选项
+              </el-menu-item>
 
-            <el-menu-item index="/booking" v-if="authStore.isLoggedIn">
-              <el-icon><Calendar /></el-icon>
-              预订滑板车
-            </el-menu-item>
+              <el-menu-item index="/booking" v-if="authStore.isLoggedIn">
+                <el-icon><Calendar /></el-icon>
+                预订滑板车
+              </el-menu-item>
 
-            <el-menu-item index="/my-bookings" v-if="authStore.isLoggedIn">
-              <el-icon><List /></el-icon>
-              我的预订
-            </el-menu-item>
-          </el-menu>
+              <el-menu-item index="/my-bookings" v-if="authStore.isLoggedIn">
+                <el-icon><List /></el-icon>
+                我的预订
+              </el-menu-item>
+            </el-menu>
 
-          <div class="header-actions">
-            <template v-if="authStore.isLoggedIn">
-              <el-dropdown @command="handleUserCommand">
-                <span class="user-info">
-                  <el-icon><User /></el-icon>
-                  {{ authStore.currentUser?.fullName || '用户' }}
-                  <el-icon><ArrowDown /></el-icon>
-                </span>
-                <template #dropdown>
-                  <el-dropdown-menu>
-                    <el-dropdown-item command="profile">
-                      个人信息
-                    </el-dropdown-item>
-                    <el-dropdown-item command="logout" divided>
-                      退出登录
-                    </el-dropdown-item>
-                  </el-dropdown-menu>
-                </template>
-              </el-dropdown>
-            </template>
+            <div class="header-actions">
+              <template v-if="authStore.isLoggedIn">
+                <el-dropdown @command="handleUserCommand">
+                  <span class="user-info">
+                    <el-icon><User /></el-icon>
+                    {{ authStore.currentUser?.fullName || '用户' }}
+                    <el-icon><ArrowDown /></el-icon>
+                  </span>
+                  <template #dropdown>
+                    <el-dropdown-menu>
+                      <el-dropdown-item command="profile">
+                        个人信息
+                      </el-dropdown-item>
+                      <el-dropdown-item 
+                        command="admin" 
+                        v-if="authStore.currentUser?.role === 'MANAGER'">
+                        管理界面
+                      </el-dropdown-item>
+                      <el-dropdown-item command="logout" divided>
+                        退出登录
+                      </el-dropdown-item>
+                    </el-dropdown-menu>
+                  </template>
+                </el-dropdown>
+              </template>
 
-            <template v-else>
-              <el-button @click="goToLogin">登录</el-button>
-              <el-button type="primary" @click="goToRegister">注册</el-button>
-            </template>
+              <template v-else>
+                <el-button @click="goToLogin">登录</el-button>
+                <el-button type="primary" @click="goToRegister">注册</el-button>
+              </template>
+            </div>
           </div>
-        </div>
-      </el-header>
+        </el-header>
 
-      <el-main class="app-main">
-        <router-view />
-      </el-main>
+        <el-main class="app-main">
+          <router-view />
+        </el-main>
 
-      <el-footer class="app-footer">
-        <p>&copy; 2026 Urbanova 电动滑板车租赁系统</p>
-      </el-footer>
-    </el-container>
+        <el-footer class="app-footer">
+          <p>&copy; 2026 Urbanova 电动滑板车租赁系统</p>
+        </el-footer>
+      </el-container>
+    </template>
+
+    <template v-else>
+      <router-view />
+    </template>
   </div>
 </template>
 
@@ -78,6 +90,10 @@ import { Tickets, Calendar, List, User, ArrowDown } from '@element-plus/icons-vu
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
+
+const isAdminRoute = computed(() => {
+  return route.path.startsWith('/admin')
+})
 
 const currentRoute = computed(() => route.path)
 
@@ -96,6 +112,8 @@ const handleUserCommand = (command) => {
     localStorage.removeItem('myBookings')
   } else if (command === 'profile') {
     // TODO: 个人中心页面
+  } else if (command === 'admin') {
+    router.push('/admin/dashboard')
   }
 }
 </script>

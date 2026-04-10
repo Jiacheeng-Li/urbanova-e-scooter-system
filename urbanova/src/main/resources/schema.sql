@@ -29,9 +29,23 @@ CREATE TABLE IF NOT EXISTS hire_options (
     UNIQUE KEY uk_hire_options_code (code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS scooter_types (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    type_code VARCHAR(40) NOT NULL,
+    display_name VARCHAR(80) NOT NULL,
+    image_url VARCHAR(255) NOT NULL,
+    description VARCHAR(255) NULL,
+    active TINYINT(1) NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_scooter_types_type_code (type_code)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS scooters (
     id BIGINT NOT NULL AUTO_INCREMENT,
     scooter_id VARCHAR(32) NOT NULL,
+    type_code VARCHAR(40) NOT NULL,
     status VARCHAR(20) NOT NULL,
     battery_percent INT NOT NULL DEFAULT 100,
     lat DECIMAL(10,6) NULL,
@@ -41,7 +55,9 @@ CREATE TABLE IF NOT EXISTS scooters (
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
-    UNIQUE KEY uk_scooters_scooter_id (scooter_id)
+    UNIQUE KEY uk_scooters_scooter_id (scooter_id),
+    KEY idx_scooters_type_code (type_code),
+    CONSTRAINT fk_scooters_type_code FOREIGN KEY (type_code) REFERENCES scooter_types (type_code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS bookings (
@@ -70,4 +86,3 @@ CREATE TABLE IF NOT EXISTS bookings (
     KEY idx_bookings_scooter_id (scooter_id),
     KEY idx_bookings_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-

@@ -1,20 +1,16 @@
-package com.lcyhz.urbanova.entity;
+package com.lcyhz.urbanova.vo.scooter;
 
-import com.baomidou.mybatisplus.annotation.IdType;
-import com.baomidou.mybatisplus.annotation.TableId;
-import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Data
-@TableName("scooters")
-public class ScooterEntity {
-    @TableId(type = IdType.AUTO)
-    private Long id;
+public class AdminScooterVo {
     private String scooterId;
     private String typeCode;
+    private String typeDisplayName;
+    private String typeImageUrl;
     private String status;
     private Integer batteryPercent;
     private BigDecimal lat;

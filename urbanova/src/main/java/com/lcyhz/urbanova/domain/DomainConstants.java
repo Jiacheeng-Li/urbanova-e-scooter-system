@@ -5,6 +5,7 @@ public final class DomainConstants {
     }
 
     public static final String ROLE_CUSTOMER = "CUSTOMER";
+    public static final String ROLE_MANAGER = "MANAGER";
     public static final String ACCOUNT_ACTIVE = "ACTIVE";
     public static final String DISCOUNT_NONE = "NONE";
     public static final String CUSTOMER_TYPE_REGISTERED = "REGISTERED";
@@ -30,4 +31,3 @@ public final class DomainConstants {
         public static final String CANCELLED = "CANCELLED";
     }
 }
-

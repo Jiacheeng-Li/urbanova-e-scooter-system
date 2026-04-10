@@ -114,4 +114,57 @@ export const bookingApi = {
   }
 }
 
+// ==================== Admin Hire Options API (ID 16) ====================
+
+export const adminHireOptionsApi = {
+  // 获取所有租赁选项（管理端）
+  list() {
+    return api.get('/admin/hire-options')
+  },
+
+  // 创建租赁选项
+  create(data) {
+    return api.post('/admin/hire-options', data)
+  },
+
+  // 更新租赁选项
+  update(hireOptionId, data) {
+    return api.patch(`/admin/hire-options/${hireOptionId}`, data)
+  },
+
+  // 禁用租赁选项
+  disable(hireOptionId) {
+    return api.delete(`/admin/hire-options/${hireOptionId}`)
+  }
+}
+
+// ==================== Admin Scooters API ====================
+
+export const adminScootersApi = {
+  // 获取所有滑板车（管理端）
+  list(params) {
+    return api.get('/admin/scooters', { params })
+  },
+
+  // 添加滑板车
+  create(data) {
+    return api.post('/admin/scooters', data)
+  },
+
+  // 更新滑板车信息（电量、位置、区域）
+  update(scooterId, data) {
+    return api.patch(`/admin/scooters/${scooterId}`, data)
+  },
+
+  // 更新滑板车状态
+  updateStatus(scooterId, data) {
+    return api.patch(`/admin/scooters/${scooterId}/status`, data)
+  },
+
+  // 批量更新滑板车状态
+  bulkUpdateStatus(data) {
+    return api.post('/admin/scooters/bulk-status', data)
+  }
+}
+
 export default api
