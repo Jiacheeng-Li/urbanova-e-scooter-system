@@ -25,6 +25,10 @@ public class AuthInterceptor implements HandlerInterceptor {
         String path = request.getRequestURI();
         String method = request.getMethod();
 
+        if ("OPTIONS".equalsIgnoreCase(method)) {
+            return true;
+        }
+
         if (isPublicEndpoint(path, method)) {
             return true;
         }
