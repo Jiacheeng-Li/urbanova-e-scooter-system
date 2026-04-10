@@ -26,3 +26,19 @@ urbanova-frontend/npm-debug.log*
 urbanova-frontend/yarn-debug.log*
 urbanova-frontend/yarn-error.log*
 urbanova-frontend/.pnpm-store/
+
+# URBANOVA mobile frontend (Expo)
+urbanova-mobile-frontend/node_modules/
+urbanova-mobile-frontend/.expo/
+urbanova-mobile-frontend/.expo-shared/
+urbanova-mobile-frontend/.expo-dev-client/
+urbanova-mobile-frontend/dist/
+urbanova-mobile-frontend/web-build/
+urbanova-mobile-frontend/.idea/
+urbanova-mobile-frontend/.vscode/
+urbanova-mobile-frontend/android/
+urbanova-mobile-frontend/ios/
+
+# env files / secrets
+urbanova-mobile-frontend/.env
+urbanova-mobile-frontend/.env.*

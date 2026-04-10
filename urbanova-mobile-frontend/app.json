@@ -1,0 +1,63 @@
+{
+  "expo": {
+    "name": "URBANOVA",
+    "slug": "urbanova-mobile",
+    "scheme": "urbanova",
+    "description": "URBANOVA is a shared micromobility client built with Expo and React Native.",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "cover",
+      "backgroundColor": "#0a0f0a"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.cinnabar.urbanova",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "URBANOVA uses your location to show nearby vehicles and guide you through rides.",
+        "NSLocationAlwaysUsageDescription": "Location access lets URBANOVA keep your ride connected even when the app is in the background."
+      }
+    },
+    "android": {
+      "package": "com.cinnabar.urbanova",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0a0f0a"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": true,
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ],
+      "userInterfaceStyle": "automatic",
+      "statusBar": {
+        "barStyle": "light-content",
+        "backgroundColor": "#060d06"
+      }
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "isAndroidBackgroundLocationEnabled": false,
+          "locationWhenInUsePermission": "Allow URBANOVA to access your location to find nearby vehicles and unlock rides.",
+          "locationAlwaysAndWhenInUsePermission": "Allow URBANOVA to use your location while riding so we can pause or end rides automatically."
+        }
+      ]
+    ],
+    "extra": {
+      "apiBaseUrl": "http://192.168.75.96:8080",
+      "supportEmail": "support@urbanova.app",
+      "enableLabs": true
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}
