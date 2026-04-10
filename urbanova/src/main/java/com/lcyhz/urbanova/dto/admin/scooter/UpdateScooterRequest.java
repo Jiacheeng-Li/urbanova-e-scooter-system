@@ -16,8 +16,6 @@ public class UpdateScooterRequest {
     @Max(value = 100, message = "batteryPercent must be between 0 and 100")
     private Integer batteryPercent;
 
-    private String typeCode;
-
     private BigDecimal lat;
     private BigDecimal lng;
 
