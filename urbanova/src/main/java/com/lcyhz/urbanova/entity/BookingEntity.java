@@ -17,10 +17,15 @@ public class BookingEntity {
     private String bookingRef;
     private String customerType;
     private String userId;
+    private String guestName;
+    private String guestEmail;
+    private String guestPhone;
     private String scooterId;
     private String hireOptionId;
     private LocalDateTime startAt;
     private LocalDateTime endAt;
+    private LocalDateTime actualStartAt;
+    private LocalDateTime actualEndAt;
     private String status;
     private BigDecimal priceBase;
     private BigDecimal priceDiscount;

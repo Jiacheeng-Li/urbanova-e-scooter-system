@@ -9,7 +9,9 @@ import com.lcyhz.urbanova.domain.DomainConstants;
 import com.lcyhz.urbanova.dto.pricing.PriceQuoteRequest;
 import com.lcyhz.urbanova.entity.HireOptionEntity;
 import com.lcyhz.urbanova.mapper.HireOptionMapper;
+import com.lcyhz.urbanova.service.DiscountRuleService;
 import com.lcyhz.urbanova.service.HireOptionService;
+import com.lcyhz.urbanova.vo.pricing.AppliedDiscountVo;
 import com.lcyhz.urbanova.vo.hire.AdminHireOptionVo;
 import com.lcyhz.urbanova.vo.hire.HireOptionVo;
 import com.lcyhz.urbanova.vo.pricing.PriceQuoteVo;
@@ -28,6 +30,7 @@ import java.time.LocalDateTime;
 @RequiredArgsConstructor
 public class HireOptionServiceImpl implements HireOptionService {
     private final HireOptionMapper hireOptionMapper;
+    private final DiscountRuleService discountRuleService;
 
     @Override
     public List<HireOptionVo> listActiveHireOptions() {
@@ -38,7 +41,7 @@ public class HireOptionServiceImpl implements HireOptionService {
     }
 
     @Override
-    public PriceQuoteVo quotePrice(PriceQuoteRequest request) {
+    public PriceQuoteVo quotePrice(String userId, PriceQuoteRequest request) {
         HireOptionEntity option = hireOptionMapper.selectOne(new LambdaQueryWrapper<HireOptionEntity>()
                 .eq(HireOptionEntity::getCode, request.getHireOptionCode())
                 .eq(HireOptionEntity::getActive, 1));
@@ -46,10 +49,12 @@ public class HireOptionServiceImpl implements HireOptionService {
             throw new BusinessException(HttpStatus.NOT_FOUND.value(), ErrorCodes.RESOURCE_NOT_FOUND, "Hire option not found");
         }
 
+        DiscountRuleService.DiscountComputation computation = discountRuleService.calculateForUser(userId, option.getBasePrice());
+
         PriceQuoteVo quoteVo = new PriceQuoteVo();
         quoteVo.setBasePrice(option.getBasePrice());
-        quoteVo.setAppliedDiscounts(Collections.emptyList());
-        quoteVo.setFinalPrice(option.getBasePrice().subtract(BigDecimal.ZERO));
+        quoteVo.setAppliedDiscounts(computation.appliedDiscounts() == null ? Collections.<AppliedDiscountVo>emptyList() : computation.appliedDiscounts());
+        quoteVo.setFinalPrice(computation.finalPrice());
         quoteVo.setCurrency(DomainConstants.CURRENCY_GBP);
         return quoteVo;
     }

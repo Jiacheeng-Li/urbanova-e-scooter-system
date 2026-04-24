@@ -9,6 +9,16 @@ ON DUPLICATE KEY UPDATE
     base_price = VALUES(base_price),
     active = VALUES(active);
 
+INSERT INTO discount_rules (discount_rule_id, type, threshold_hours_per_week, percentage, active)
+VALUES
+    ('DISC-FREQUENT', 'FREQUENT_USER', 8.00, 15.00, 1),
+    ('DISC-STUDENT', 'STUDENT', NULL, 10.00, 1),
+    ('DISC-SENIOR', 'SENIOR', NULL, 12.00, 1)
+ON DUPLICATE KEY UPDATE
+    threshold_hours_per_week = VALUES(threshold_hours_per_week),
+    percentage = VALUES(percentage),
+    active = VALUES(active);
+
 INSERT INTO scooter_types (type_code, display_name, image_url, description, active)
 VALUES
     ('ANDROMEDA', 'ANDROMEDA', '/images/scooter-types/andromeda.png', 'High-performance urban scooter.', 1),

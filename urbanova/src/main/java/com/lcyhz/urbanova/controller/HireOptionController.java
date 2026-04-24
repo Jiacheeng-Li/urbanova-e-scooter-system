@@ -2,14 +2,17 @@ package com.lcyhz.urbanova.controller;
 
 import com.lcyhz.urbanova.common.api.ApiResponse;
 import com.lcyhz.urbanova.dto.pricing.PriceQuoteRequest;
+import com.lcyhz.urbanova.security.JwtService;
 import com.lcyhz.urbanova.service.HireOptionService;
 import com.lcyhz.urbanova.vo.hire.HireOptionVo;
 import com.lcyhz.urbanova.vo.pricing.PriceQuoteVo;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -20,6 +23,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class HireOptionController {
     private final HireOptionService hireOptionService;
+    private final JwtService jwtService;
 
     @GetMapping("/hire-options")
     public ApiResponse<List<HireOptionVo>> listHireOptions() {
@@ -27,8 +31,13 @@ public class HireOptionController {
     }
 
     @PostMapping("/pricing/quotes")
-    public ApiResponse<PriceQuoteVo> quote(@Valid @RequestBody PriceQuoteRequest request) {
-        return ApiResponse.success(hireOptionService.quotePrice(request));
+    public ApiResponse<PriceQuoteVo> quote(@Valid @RequestBody PriceQuoteRequest request,
+                                           @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
+        String userId = null;
+        if (authorization != null && authorization.startsWith("Bearer ")) {
+            userId = jwtService.parseToken(authorization.substring("Bearer ".length()).trim()).getUserId();
+        }
+        return ApiResponse.success(hireOptionService.quotePrice(userId, request));
     }
 }
 

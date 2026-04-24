@@ -6,6 +6,7 @@ import com.lcyhz.urbanova.dto.admin.hire.CreateHireOptionRequest;
 import com.lcyhz.urbanova.dto.admin.hire.UpdateHireOptionRequest;
 import com.lcyhz.urbanova.security.AuthContext;
 import com.lcyhz.urbanova.service.HireOptionService;
+import com.lcyhz.urbanova.service.support.PlatformSupportService;
 import com.lcyhz.urbanova.vo.hire.AdminHireOptionVo;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +26,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class AdminHireOptionController {
     private final HireOptionService hireOptionService;
+    private final PlatformSupportService platformSupportService;
 
     @GetMapping
     public ApiResponse<List<AdminHireOptionVo>> listHireOptions() {
@@ -35,19 +37,25 @@ public class AdminHireOptionController {
     @PostMapping
     public ApiResponse<AdminHireOptionVo> createHireOption(@Valid @RequestBody CreateHireOptionRequest request) {
         AuthContext.requireRole(DomainConstants.ROLE_MANAGER);
-        return ApiResponse.success(hireOptionService.createHireOption(request));
+        AdminHireOptionVo result = hireOptionService.createHireOption(request);
+        platformSupportService.recordAudit("HIRE_OPTION_CREATED", "HIRE_OPTION", result.getHireOptionId(), result.getCode());
+        return ApiResponse.success(result);
     }
 
     @PatchMapping("/{hireOptionId}")
     public ApiResponse<AdminHireOptionVo> updateHireOption(@PathVariable String hireOptionId,
                                                            @Valid @RequestBody UpdateHireOptionRequest request) {
         AuthContext.requireRole(DomainConstants.ROLE_MANAGER);
-        return ApiResponse.success(hireOptionService.updateHireOption(hireOptionId, request));
+        AdminHireOptionVo result = hireOptionService.updateHireOption(hireOptionId, request);
+        platformSupportService.recordAudit("HIRE_OPTION_UPDATED", "HIRE_OPTION", result.getHireOptionId(), result.getCode());
+        return ApiResponse.success(result);
     }
 
     @DeleteMapping("/{hireOptionId}")
     public ApiResponse<AdminHireOptionVo> disableHireOption(@PathVariable String hireOptionId) {
         AuthContext.requireRole(DomainConstants.ROLE_MANAGER);
-        return ApiResponse.success(hireOptionService.disableHireOption(hireOptionId));
+        AdminHireOptionVo result = hireOptionService.disableHireOption(hireOptionId);
+        platformSupportService.recordAudit("HIRE_OPTION_DISABLED", "HIRE_OPTION", result.getHireOptionId(), result.getCode());
+        return ApiResponse.success(result);
     }
 }

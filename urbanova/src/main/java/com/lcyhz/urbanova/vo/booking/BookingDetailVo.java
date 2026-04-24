@@ -11,11 +11,16 @@ public class BookingDetailVo {
     private String bookingRef;
     private String customerType;
     private String userId;
+    private String guestName;
+    private String guestEmail;
+    private String guestPhone;
     private String scooterId;
     private String hireOptionId;
     private String status;
     private LocalDateTime startAt;
     private LocalDateTime endAt;
+    private LocalDateTime actualStartAt;
+    private LocalDateTime actualEndAt;
     private BigDecimal priceBase;
     private BigDecimal priceDiscount;
     private BigDecimal priceFinal;

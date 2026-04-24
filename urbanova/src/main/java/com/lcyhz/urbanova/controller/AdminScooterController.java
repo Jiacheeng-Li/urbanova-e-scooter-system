@@ -8,6 +8,7 @@ import com.lcyhz.urbanova.dto.admin.scooter.UpdateScooterRequest;
 import com.lcyhz.urbanova.dto.admin.scooter.UpdateScooterStatusRequest;
 import com.lcyhz.urbanova.security.AuthContext;
 import com.lcyhz.urbanova.service.ScooterService;
+import com.lcyhz.urbanova.service.support.PlatformSupportService;
 import com.lcyhz.urbanova.vo.scooter.AdminScooterVo;
 import com.lcyhz.urbanova.vo.scooter.BulkScooterStatusUpdateVo;
 import jakarta.validation.Valid;
@@ -28,6 +29,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class AdminScooterController {
     private final ScooterService scooterService;
+    private final PlatformSupportService platformSupportService;
 
     @GetMapping
     public ApiResponse<List<AdminScooterVo>> listScooters(@RequestParam(required = false) String status) {
@@ -38,27 +40,35 @@ public class AdminScooterController {
     @PostMapping
     public ApiResponse<AdminScooterVo> createScooter(@Valid @RequestBody CreateScooterRequest request) {
         AuthContext.requireRole(DomainConstants.ROLE_MANAGER);
-        return ApiResponse.success(scooterService.createScooter(request));
+        AdminScooterVo result = scooterService.createScooter(request);
+        platformSupportService.recordAudit("SCOOTER_CREATED", "SCOOTER", result.getScooterId(), result.getStatus());
+        return ApiResponse.success(result);
     }
 
     @PatchMapping("/{scooterId}")
     public ApiResponse<AdminScooterVo> updateScooter(@PathVariable String scooterId,
                                                      @Valid @RequestBody UpdateScooterRequest request) {
         AuthContext.requireRole(DomainConstants.ROLE_MANAGER);
-        return ApiResponse.success(scooterService.updateScooter(scooterId, request));
+        AdminScooterVo result = scooterService.updateScooter(scooterId, request);
+        platformSupportService.recordAudit("SCOOTER_UPDATED", "SCOOTER", result.getScooterId(), result.getStatus());
+        return ApiResponse.success(result);
     }
 
     @PatchMapping("/{scooterId}/status")
     public ApiResponse<AdminScooterVo> updateScooterStatus(@PathVariable String scooterId,
                                                            @Valid @RequestBody UpdateScooterStatusRequest request) {
         AuthContext.requireRole(DomainConstants.ROLE_MANAGER);
-        return ApiResponse.success(scooterService.updateScooterStatus(scooterId, request));
+        AdminScooterVo result = scooterService.updateScooterStatus(scooterId, request);
+        platformSupportService.recordAudit("SCOOTER_STATUS_UPDATED", "SCOOTER", result.getScooterId(), result.getStatus());
+        return ApiResponse.success(result);
     }
 
     @PostMapping("/bulk-status")
     public ApiResponse<BulkScooterStatusUpdateVo> bulkUpdateScooterStatus(
             @Valid @RequestBody BulkUpdateScooterStatusRequest request) {
         AuthContext.requireRole(DomainConstants.ROLE_MANAGER);
-        return ApiResponse.success(scooterService.bulkUpdateScooterStatus(request));
+        BulkScooterStatusUpdateVo result = scooterService.bulkUpdateScooterStatus(request);
+        platformSupportService.recordAudit("SCOOTER_BULK_STATUS_UPDATED", "SCOOTER", String.join(",", result.getScooterIds()), result.getStatus());
+        return ApiResponse.success(result);
     }
 }

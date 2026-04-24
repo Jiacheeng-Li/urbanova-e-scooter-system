@@ -11,6 +11,9 @@ public final class ErrorCodes {
     public static final String RESOURCE_NOT_FOUND = "RESOURCE_NOT_FOUND";
     public static final String BOOKING_CONFLICT = "BOOKING_CONFLICT";
     public static final String SCOOTER_NOT_AVAILABLE = "SCOOTER_NOT_AVAILABLE";
+    public static final String PAYMENT_FAILED = "PAYMENT_FAILED";
+    public static final String IDEMPOTENCY_KEY_REUSED = "IDEMPOTENCY_KEY_REUSED";
+    public static final String PRECONDITION_FAILED = "PRECONDITION_FAILED";
     public static final String INTERNAL_ERROR = "INTERNAL_ERROR";
 }
 

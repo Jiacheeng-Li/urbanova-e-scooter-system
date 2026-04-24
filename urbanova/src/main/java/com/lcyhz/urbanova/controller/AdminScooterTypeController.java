@@ -6,6 +6,7 @@ import com.lcyhz.urbanova.dto.admin.scootertype.CreateScooterTypeRequest;
 import com.lcyhz.urbanova.dto.admin.scootertype.UpdateScooterTypeRequest;
 import com.lcyhz.urbanova.security.AuthContext;
 import com.lcyhz.urbanova.service.ScooterTypeService;
+import com.lcyhz.urbanova.service.support.PlatformSupportService;
 import com.lcyhz.urbanova.vo.scooter.AdminScooterTypeVo;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +26,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class AdminScooterTypeController {
     private final ScooterTypeService scooterTypeService;
+    private final PlatformSupportService platformSupportService;
 
     @GetMapping
     public ApiResponse<List<AdminScooterTypeVo>> listScooterTypes() {
@@ -35,19 +37,25 @@ public class AdminScooterTypeController {
     @PostMapping
     public ApiResponse<AdminScooterTypeVo> createScooterType(@Valid @RequestBody CreateScooterTypeRequest request) {
         AuthContext.requireRole(DomainConstants.ROLE_MANAGER);
-        return ApiResponse.success(scooterTypeService.createScooterType(request));
+        AdminScooterTypeVo result = scooterTypeService.createScooterType(request);
+        platformSupportService.recordAudit("SCOOTER_TYPE_CREATED", "SCOOTER_TYPE", result.getTypeCode(), result.getDisplayName());
+        return ApiResponse.success(result);
     }
 
     @PatchMapping("/{typeCode}")
     public ApiResponse<AdminScooterTypeVo> updateScooterType(@PathVariable String typeCode,
                                                              @Valid @RequestBody UpdateScooterTypeRequest request) {
         AuthContext.requireRole(DomainConstants.ROLE_MANAGER);
-        return ApiResponse.success(scooterTypeService.updateScooterType(typeCode, request));
+        AdminScooterTypeVo result = scooterTypeService.updateScooterType(typeCode, request);
+        platformSupportService.recordAudit("SCOOTER_TYPE_UPDATED", "SCOOTER_TYPE", result.getTypeCode(), result.getDisplayName());
+        return ApiResponse.success(result);
     }
 
     @DeleteMapping("/{typeCode}")
     public ApiResponse<AdminScooterTypeVo> disableScooterType(@PathVariable String typeCode) {
         AuthContext.requireRole(DomainConstants.ROLE_MANAGER);
-        return ApiResponse.success(scooterTypeService.disableScooterType(typeCode));
+        AdminScooterTypeVo result = scooterTypeService.disableScooterType(typeCode);
+        platformSupportService.recordAudit("SCOOTER_TYPE_DISABLED", "SCOOTER_TYPE", result.getTypeCode(), result.getDisplayName());
+        return ApiResponse.success(result);
     }
 }
