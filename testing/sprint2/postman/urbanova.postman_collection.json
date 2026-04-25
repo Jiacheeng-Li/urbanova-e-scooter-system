@@ -1,0 +1,236 @@
+{
+  "info": {
+    "name": "Urbanova Sprint 2",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "00 Health",
+      "item": [
+        {
+          "name": "TC-API-01 Health Check",
+          "request": { "method": "GET", "url": "{{baseUrl}}/health" },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('200', () => pm.response.to.have.status(200));",
+              "pm.test('status UP', () => pm.expect(pm.response.json().data.status).to.eql('UP'));"
+            ]}
+          }]
+        }
+      ]
+    },
+    {
+      "name": "01 Auth",
+      "item": [
+        {
+          "name": "Register (run once to seed customer)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/auth/register",
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{customerEmail}}\",\n  \"password\": \"{{customerPassword}}\",\n  \"fullName\": \"Test Customer\"\n}" }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "// 已存在也算通过,只为了 seed 数据",
+              "pm.test('200 or 400(already exists)', () => pm.expect([200,400]).to.include(pm.response.code));"
+            ]}
+          }]
+        },
+        {
+          "name": "Login as Customer (saves token)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/auth/login",
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{customerEmail}}\",\n  \"password\": \"{{customerPassword}}\"\n}" }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('200', () => pm.response.to.have.status(200));",
+              "const t = pm.response.json().data.accessToken;",
+              "pm.environment.set('customerToken', t);",
+              "pm.test('token saved', () => pm.expect(t).to.be.a('string'));"
+            ]}
+          }]
+        },
+        {
+          "name": "Login as Manager (saves token)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/auth/login",
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{managerEmail}}\",\n  \"password\": \"{{managerPassword}}\"\n}" }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('200', () => pm.response.to.have.status(200));",
+              "pm.environment.set('managerToken', pm.response.json().data.accessToken);"
+            ]}
+          }]
+        },
+        {
+          "name": "TC-API-12 Get Me",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customerToken}}" }],
+            "url": "{{baseUrl}}/users/me"
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": ["pm.test('200', () => pm.response.to.have.status(200));"] }
+          }]
+        },
+        {
+          "name": "TC-API-13 Get Me - no token",
+          "request": { "method": "GET", "url": "{{baseUrl}}/users/me" },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": ["pm.test('401', () => pm.response.to.have.status(401));"] }
+          }]
+        }
+      ]
+    },
+    {
+      "name": "02 Public Hire & Scooter",
+      "item": [
+        {
+          "name": "TC-API-15 List Hire Options",
+          "request": { "method": "GET", "url": "{{baseUrl}}/hire-options" },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('200', () => pm.response.to.have.status(200));",
+              "pm.test('returns array', () => pm.expect(pm.response.json().data).to.be.an('array'));"
+            ]}
+          }]
+        },
+        {
+          "name": "TC-API-17 Quote H1",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/pricing/quotes",
+            "body": { "mode": "raw", "raw": "{\"hireOptionCode\": \"H1\"}" }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('200', () => pm.response.to.have.status(200));",
+              "pm.test('finalPrice 3.00', () => pm.expect(Number(pm.response.json().data.finalPrice)).to.eql(3));"
+            ]}
+          }]
+        },
+        {
+          "name": "TC-API-19 Quote INVALID",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/pricing/quotes",
+            "body": { "mode": "raw", "raw": "{\"hireOptionCode\": \"INVALID\"}" }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": ["pm.test('404', () => pm.response.to.have.status(404));"] }
+          }]
+        }
+      ]
+    },
+    {
+      "name": "03 Admin (Manager token)",
+      "item": [
+        {
+          "name": "TC-API-31 List Scooter Types as Manager",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{managerToken}}" }],
+            "url": "{{baseUrl}}/admin/scooter-types"
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": ["pm.test('200', () => pm.response.to.have.status(200));"] }
+          }]
+        },
+        {
+          "name": "TC-API-32 List Scooter Types as Customer (should 403)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customerToken}}" }],
+            "url": "{{baseUrl}}/admin/scooter-types"
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": ["pm.test('403', () => pm.response.to.have.status(403));"] }
+          }]
+        },
+        {
+          "name": "TC-API-49 List Admin Scooters",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{managerToken}}" }],
+            "url": "{{baseUrl}}/admin/scooters"
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": ["pm.test('200', () => pm.response.to.have.status(200));"] }
+          }]
+        }
+      ]
+    },
+    {
+      "name": "04 Booking (Customer token)",
+      "item": [
+        {
+          "name": "TC-API-21 Create Booking",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{customerToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{baseUrl}}/bookings",
+            "body": { "mode": "raw", "raw": "{\n  \"scooterId\": \"SCO-0001\",\n  \"hireOptionId\": \"H1\"\n}" }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('200', () => pm.response.to.have.status(200));",
+              "const id = pm.response.json().data.bookingId;",
+              "pm.environment.set('bookingId', id);"
+            ]}
+          }]
+        },
+        {
+          "name": "TC-API-26 Cancel Booking",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customerToken}}" }],
+            "url": "{{baseUrl}}/bookings/{{bookingId}}/cancel"
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": ["pm.test('200', () => pm.response.to.have.status(200));"] }
+          }]
+        },
+        {
+          "name": "TC-API-30 Cancel Already-Cancelled (regression, expect 403)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customerToken}}" }],
+            "url": "{{baseUrl}}/bookings/{{bookingId}}/cancel"
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('expect 403 (Sprint1 BUG)', () => pm.response.to.have.status(403));"
+            ]}
+          }]
+        }
+      ]
+    }
+  ]
+}
