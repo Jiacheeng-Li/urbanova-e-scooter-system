@@ -1,5 +1,5 @@
-import React from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+﻿import React from 'react';
+import { Image, ImageSourcePropType, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Vehicle } from '@models/index';
 import { colors, radii } from '@theme/index';
 import { formatCurrency } from '@utils/format';
@@ -11,23 +11,38 @@ interface Props {
   onReserve?: (vehicle: Vehicle) => void;
 }
 
-const VehicleCard: React.FC<Props> = ({ vehicle, isSelected, onPress, onReserve }) => (
-  <Pressable onPress={() => onPress?.(vehicle)} style={[styles.card, isSelected && styles.selectedCard]}>
-    {vehicle.image ? <Image source={{ uri: vehicle.image }} style={styles.image} /> : <View style={styles.placeholder} />}
-    <View style={styles.info}>
-      <View style={styles.heading}>
-        <Text style={styles.name}>{vehicle.name}</Text>
-        <Text style={[styles.badge, statusColor(vehicle.status)]}>{vehicle.status}</Text>
+const resolveSource = (image?: string | number): ImageSourcePropType | null => {
+  if (!image) {
+    return null;
+  }
+  if (typeof image === 'number') {
+    return image;
+  }
+  return { uri: image };
+};
+
+const VehicleCard: React.FC<Props> = ({ vehicle, isSelected, onPress, onReserve }) => {
+  const source = resolveSource(vehicle.image);
+
+  return (
+    <Pressable onPress={() => onPress?.(vehicle)} style={[styles.card, isSelected && styles.selectedCard]}>
+      {source ? <Image source={source} style={styles.image} resizeMode="cover" /> : <View style={styles.placeholder} />}
+      <View style={styles.info}>
+        <View style={styles.heading}>
+          <Text style={styles.name}>{vehicle.name}</Text>
+          <Text style={[styles.badge, statusColor(vehicle.status)]}>{vehicle.status}</Text>
+        </View>
+        <Text style={styles.modelText}>{vehicle.modelName || 'Standard model'}</Text>
+        <Text style={styles.meta}>
+          {vehicle.battery}% | {vehicle.distance.toFixed(1)} km | {formatCurrency(vehicle.pricePerMin, 'GBP')}/min
+        </Text>
+        <Pressable style={styles.reserveBtn} onPress={() => onReserve?.(vehicle)}>
+          <Text style={styles.reserveLabel}>Reserve</Text>
+        </Pressable>
       </View>
-      <Text style={styles.meta}>
-        {vehicle.battery}% | {vehicle.distance.toFixed(1)} km | {formatCurrency(vehicle.pricePerMin, 'GBP')}/min
-      </Text>
-      <Pressable style={styles.reserveBtn} onPress={() => onReserve?.(vehicle)}>
-        <Text style={styles.reserveLabel}>Reserve</Text>
-      </Pressable>
-    </View>
-  </Pressable>
-);
+    </Pressable>
+  );
+};
 
 const statusColor = (status: string) => {
   switch (status) {
@@ -58,14 +73,15 @@ const styles = StyleSheet.create({
     borderColor: colors.lime,
   },
   image: {
-    width: 64,
-    height: 64,
+    width: 70,
+    height: 70,
     borderRadius: radii.md,
     marginRight: 12,
+    backgroundColor: 'rgba(255,255,255,0.06)',
   },
   placeholder: {
-    width: 64,
-    height: 64,
+    width: 70,
+    height: 70,
     marginRight: 12,
     borderRadius: radii.md,
     backgroundColor: 'rgba(255,255,255,0.08)',
@@ -82,6 +98,11 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     fontSize: 16,
     fontWeight: '600',
+  },
+  modelText: {
+    color: colors.limeMuted,
+    marginTop: 4,
+    fontSize: 12,
   },
   badge: {
     fontSize: 12,

@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { Alert, Linking, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+﻿import React, { useEffect, useState } from 'react';
+import { Alert, Linking, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import { useQuery } from '@tanstack/react-query';
 import ScreenContainer from '@components/ScreenContainer';
 import { useProfile } from '@hooks/useProfile';
 import ProfileHeader from '@components/ProfileHeader';
@@ -11,6 +12,9 @@ import { useAuthStore } from '@store/useAuthStore';
 import { MainTabParamList } from '@models/index';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSettingsStore } from '@store/useSettingsStore';
+import { AuthService } from '@services/api';
+import { validatePasswordStrength } from '@utils/security';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const SUPPORT_EMAIL = 'support@urbanova.app';
 
@@ -26,16 +30,41 @@ const CONTRAST_OPTIONS: { label: string; value: 'standard' | 'high' }[] = [
 ];
 
 const ProfileScreen = () => {
-  const { profile } = useProfile();
+  const { profile, refetch } = useProfile();
   const logout = useAuthStore((state) => state.logout);
+  const setUser = useAuthStore((state) => state.setUser);
   const tabNavigation = useNavigation<BottomTabNavigationProp<MainTabParamList>>();
   const fontScale = useSettingsStore((state) => state.fontScale);
   const contrastMode = useSettingsStore((state) => state.contrastMode);
   const setFontScale = useSettingsStore((state) => state.setFontScale);
   const setContrastMode = useSettingsStore((state) => state.setContrastMode);
+
+  const usageSummaryQuery = useQuery({
+    queryKey: ['usage-summary'],
+    queryFn: AuthService.getUsageSummary,
+    enabled: !!profile,
+  });
+
   const [profileModalVisible, setProfileModalVisible] = useState(false);
   const [settingsModalVisible, setSettingsModalVisible] = useState(false);
+  const [securityModalVisible, setSecurityModalVisible] = useState(false);
+
+  const [fullNameInput, setFullNameInput] = useState('');
+  const [phoneInput, setPhoneInput] = useState('');
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetToken, setResetToken] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+
   const scaleFont = (size: number) => Math.round(size * fontScale);
+
+  useEffect(() => {
+    if (profile) {
+      setFullNameInput(profile.fullName || '');
+      setPhoneInput(profile.phone || '');
+      setResetEmail(profile.email || '');
+    }
+  }, [profile]);
 
   const handleLogout = () => {
     Alert.alert('Sign out', 'Are you sure you want to sign out?', [
@@ -52,7 +81,7 @@ const ProfileScreen = () => {
   };
 
   const handleManagePayment = () => {
-    Alert.alert('Payments', 'Online payment management is coming soon. For now, please contact support to update cards.');
+    tabNavigation.navigate('Wallet');
   };
 
   const handleViewTrips = () => {
@@ -67,12 +96,76 @@ const ProfileScreen = () => {
     setSettingsModalVisible(true);
   };
 
-  const handleUpdateContact = () => {
-    Alert.alert('Update contact info', 'We will sync profile editing with the backend soon. For now, contact support with the details you want to change.');
+  const handleOpenSecurity = () => {
+    setSecurityModalVisible(true);
+  };
+
+  const handleUpdateProfile = async () => {
+    if (!fullNameInput.trim()) {
+      Alert.alert('Validation', 'Full name is required.');
+      return;
+    }
+    if (phoneInput && !/^[+0-9\s()-]{6,20}$/.test(phoneInput)) {
+      Alert.alert('Validation', 'Phone format looks invalid.');
+      return;
+    }
+
+    try {
+      const updated = await AuthService.updateProfile({
+        fullName: fullNameInput.trim(),
+        phone: phoneInput.trim() || null,
+      });
+      setUser(updated);
+      await refetch();
+      Alert.alert('Profile updated', 'Your account details were saved.');
+      setProfileModalVisible(false);
+    } catch (error: any) {
+      Alert.alert('Update failed', error?.response?.data?.error?.message || 'Unable to update profile.');
+    }
+  };
+
+  const handleRequestResetToken = async () => {
+    if (!resetEmail.trim()) {
+      Alert.alert('Validation', 'Email is required.');
+      return;
+    }
+    try {
+      const result = await AuthService.forgotPassword(resetEmail.trim());
+      setResetToken(result.resetToken || '');
+      Alert.alert('Reset token generated', 'A reset token was generated. It has been pre-filled for this environment.');
+    } catch (error: any) {
+      Alert.alert('Request failed', error?.response?.data?.error?.message || 'Unable to generate reset token.');
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!resetToken.trim()) {
+      Alert.alert('Validation', 'Reset token is required.');
+      return;
+    }
+    const strengthError = validatePasswordStrength(newPassword.trim());
+    if (strengthError) {
+      Alert.alert('Validation', strengthError);
+      return;
+    }
+    if (newPassword !== confirmNewPassword) {
+      Alert.alert('Validation', 'Passwords do not match.');
+      return;
+    }
+
+    try {
+      await AuthService.resetPassword(resetToken.trim(), newPassword.trim());
+      setNewPassword('');
+      setConfirmNewPassword('');
+      setResetToken('');
+      Alert.alert('Password reset', 'Password updated successfully. Please sign in again on next session.');
+    } catch (error: any) {
+      Alert.alert('Reset failed', error?.response?.data?.error?.message || 'Unable to reset password.');
+    }
   };
 
   const handleReportVehicle = () => {
-    Alert.alert('Report a vehicle', 'Head over to the Ride tab to pick a scooter and file a report from its card.', [
+    Alert.alert('Report a vehicle', 'Open your active booking and submit a return fault report from Ride details.', [
       { text: 'Stay here', style: 'cancel' },
       {
         text: 'Go to Ride',
@@ -94,30 +187,36 @@ const ProfileScreen = () => {
       id: 'contact',
       title: 'Update contact information',
       description: 'Keep your phone and email current for ride receipts.',
-      handler: handleUpdateContact,
+      handler: handleManageProfile,
     },
     {
       id: 'payment',
       title: 'Manage payment methods',
-      description: 'Choose which card is used for URBANOVA Cash and passes.',
+      description: 'Bind cards and choose your default method in Wallet.',
       handler: handleManagePayment,
     },
     {
       id: 'history',
       title: 'View ride history',
-      description: 'Jump to your Trips tab for detailed receipts.',
+      description: 'Jump to Trips for booking statuses and updates.',
       handler: handleViewTrips,
+    },
+    {
+      id: 'security',
+      title: 'Account security center',
+      description: 'Request reset token and reset password with validation.',
+      handler: handleOpenSecurity,
     },
     {
       id: 'support',
       title: 'Contact support',
-      description: `Email ${SUPPORT_EMAIL} or chat with an agent.`,
+      description: `Email ${SUPPORT_EMAIL} for account or billing issues.`,
       handler: handleContactSupport,
     },
     {
       id: 'report',
-      title: 'Report a vehicle issue',
-      description: 'Send us scooter damage or parking concerns.',
+      title: 'Report return issue',
+      description: 'Submit damage or abnormal return conditions from Ride details.',
       handler: handleReportVehicle,
     },
   ];
@@ -132,6 +231,20 @@ const ProfileScreen = () => {
     <>
       <ScreenContainer scrollable contentStyle={styles.scrollContent}>
         <ProfileHeader profile={profile} />
+
+        <LinearGradient colors={['rgba(131,111,255,0.35)', 'rgba(34,42,33,0.95)']} style={[styles.card, contrastMode === 'high' && styles.cardHighContrast]}>
+          <Text style={[styles.sectionLabel, { fontSize: scaleFont(12) }]}>Usage summary</Text>
+          {usageSummaryQuery.isLoading ? <Text style={styles.value}>Loading usage summary...</Text> : null}
+          {usageSummaryQuery.data ? (
+            <>
+              <Text style={styles.value}>Bookings: {usageSummaryQuery.data.bookingCount}</Text>
+              <Text style={styles.value}>Hours used: {usageSummaryQuery.data.hoursUsed}</Text>
+              <Text style={styles.value}>Total spent: GBP {usageSummaryQuery.data.totalSpent}</Text>
+              <Text style={styles.value}>7-day usage: {usageSummaryQuery.data.hoursLast7Days} hours</Text>
+            </>
+          ) : null}
+        </LinearGradient>
+
         <View style={styles.shortcutRow}>
           {shortcutButtons.map((item, index) => (
             <Pressable
@@ -143,11 +256,14 @@ const ProfileScreen = () => {
               ]}
               onPress={item.handler}
             >
-              <MaterialIcons name={item.icon as any} size={20} color={colors.textPrimary} />
+              <View style={styles.shortcutIconWrap}>
+                <MaterialIcons name={item.icon as any} size={20} color={colors.textPrimary} />
+              </View>
               <Text style={[styles.shortcutLabel, { fontSize: scaleFont(13) }]}>{item.label}</Text>
             </Pressable>
           ))}
         </View>
+
         <View style={[styles.actionList, contrastMode === 'high' && styles.cardHighContrast]}>
           {actionItems.map((item, index) => (
             <Pressable
@@ -155,11 +271,15 @@ const ProfileScreen = () => {
               style={[styles.actionRow, index === actionItems.length - 1 && styles.actionRowLast]}
               onPress={item.handler}
             >
-              <Text style={[styles.actionTitle, { fontSize: scaleFont(15) }]}>{item.title}</Text>
-              <Text style={[styles.actionSubtitle, { fontSize: scaleFont(13) }]}>{item.description}</Text>
+              <View style={styles.actionContent}>
+                <Text style={[styles.actionTitle, { fontSize: scaleFont(15) }]}>{item.title}</Text>
+                <Text style={[styles.actionSubtitle, { fontSize: scaleFont(13) }]}>{item.description}</Text>
+              </View>
+              <MaterialIcons name="chevron-right" size={20} color={colors.textMuted} />
             </Pressable>
           ))}
         </View>
+
         <View style={[styles.card, styles.needHelpCard, contrastMode === 'high' && styles.cardHighContrast]}>
           <Text style={[styles.needHelpTitle, { fontSize: scaleFont(16) }]}>Need help?</Text>
           <Text style={[styles.needHelpValue, { fontSize: scaleFont(14) }]}>{SUPPORT_EMAIL}</Text>
@@ -171,42 +291,41 @@ const ProfileScreen = () => {
         <PrimaryButton label="Sign out" onPress={handleLogout} style={styles.logoutButton} />
       </ScreenContainer>
 
-      <Modal
-        visible={profileModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setProfileModalVisible(false)}
-      >
+      <Modal visible={profileModalVisible} transparent animationType="fade" onRequestClose={() => setProfileModalVisible(false)}>
         <View style={styles.modalBackdrop}>
           <View style={[styles.modalCard, contrastMode === 'high' && styles.modalCardHighContrast]}>
             <Text style={[styles.modalTitle, { fontSize: scaleFont(18) }]}>Profile details</Text>
+            <Text style={[styles.sectionLabel, styles.modalSectionLabel, { fontSize: scaleFont(12) }]}>Full name</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Full name"
+              placeholderTextColor={colors.textMuted}
+              value={fullNameInput}
+              onChangeText={setFullNameInput}
+            />
             <Text style={[styles.sectionLabel, styles.modalSectionLabel, { fontSize: scaleFont(12) }]}>Phone</Text>
-            <Text style={[styles.value, { fontSize: scaleFont(16) }]}>{profile.phone || 'Not provided'}</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="+44 ..."
+              placeholderTextColor={colors.textMuted}
+              value={phoneInput}
+              onChangeText={setPhoneInput}
+            />
             <Text style={[styles.sectionLabel, styles.modalSectionLabel, { fontSize: scaleFont(12) }]}>Email</Text>
             <Text style={[styles.value, { fontSize: scaleFont(16) }]}>{profile.email || 'Not provided'}</Text>
             <Text style={[styles.sectionLabel, styles.modalSectionLabel, { fontSize: scaleFont(12) }]}>User ID</Text>
             <Text style={[styles.value, { fontSize: scaleFont(16) }]}>{profile.userId}</Text>
-            <Text style={[styles.sectionLabel, styles.modalSectionLabel, { fontSize: scaleFont(12) }]}>Member since</Text>
-            <Text style={[styles.value, { fontSize: scaleFont(16) }]}>
-              {profile.createdAt ? new Date(profile.createdAt).toLocaleDateString('en-GB') : '-'}
-            </Text>
-            <PrimaryButton label="Close" onPress={() => setProfileModalVisible(false)} style={{ marginTop: 16 }} />
+            <PrimaryButton label="Save profile" onPress={handleUpdateProfile} style={{ marginTop: 16 }} />
+            <PrimaryButton label="Close" onPress={() => setProfileModalVisible(false)} style={{ marginTop: 10 }} />
           </View>
         </View>
       </Modal>
 
-      <Modal
-        visible={settingsModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setSettingsModalVisible(false)}
-      >
+      <Modal visible={settingsModalVisible} transparent animationType="fade" onRequestClose={() => setSettingsModalVisible(false)}>
         <View style={styles.modalBackdrop}>
           <View style={[styles.modalCard, contrastMode === 'high' && styles.modalCardHighContrast]}>
             <Text style={[styles.modalTitle, { fontSize: scaleFont(18) }]}>Settings</Text>
-            <Text style={[styles.modalDescription, { fontSize: scaleFont(13) }]}>
-              Adjust how URBANOVA looks on this device.
-            </Text>
+            <Text style={[styles.modalDescription, { fontSize: scaleFont(13) }]}>Adjust how URBANOVA looks on this device.</Text>
             <Text style={[styles.sectionLabel, styles.modalSectionLabel, { fontSize: scaleFont(12) }]}>Font size</Text>
             <View style={styles.optionRow}>
               {FONT_SIZE_OPTIONS.map((option) => (
@@ -232,6 +351,54 @@ const ProfileScreen = () => {
               ))}
             </View>
             <PrimaryButton label="Done" onPress={() => setSettingsModalVisible(false)} style={{ marginTop: 16 }} />
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={securityModalVisible} transparent animationType="fade" onRequestClose={() => setSecurityModalVisible(false)}>
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.modalCard, contrastMode === 'high' && styles.modalCardHighContrast]}>
+            <Text style={[styles.modalTitle, { fontSize: scaleFont(18) }]}>Security center</Text>
+            <Text style={[styles.modalDescription, { fontSize: scaleFont(13) }]}>Use forgot/reset flow and validation for protected account operations.</Text>
+            <Text style={[styles.sectionLabel, styles.modalSectionLabel, { fontSize: scaleFont(12) }]}>Email</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Email"
+              placeholderTextColor={colors.textMuted}
+              autoCapitalize="none"
+              value={resetEmail}
+              onChangeText={setResetEmail}
+            />
+            <PrimaryButton label="Request reset token" onPress={handleRequestResetToken} />
+
+            <Text style={[styles.sectionLabel, styles.modalSectionLabel, { fontSize: scaleFont(12) }]}>Reset token</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Paste reset token"
+              placeholderTextColor={colors.textMuted}
+              value={resetToken}
+              onChangeText={setResetToken}
+            />
+            <Text style={[styles.sectionLabel, styles.modalSectionLabel, { fontSize: scaleFont(12) }]}>New password</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="At least 8 chars, A-z, 0-9"
+              placeholderTextColor={colors.textMuted}
+              secureTextEntry
+              value={newPassword}
+              onChangeText={setNewPassword}
+            />
+            <Text style={[styles.sectionLabel, styles.modalSectionLabel, { fontSize: scaleFont(12) }]}>Confirm password</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Re-enter password"
+              placeholderTextColor={colors.textMuted}
+              secureTextEntry
+              value={confirmNewPassword}
+              onChangeText={setConfirmNewPassword}
+            />
+            <PrimaryButton label="Reset password" onPress={handleResetPassword} style={{ marginTop: 8 }} />
+            <PrimaryButton label="Close" onPress={() => setSecurityModalVisible(false)} style={{ marginTop: 10 }} />
           </View>
         </View>
       </Modal>
@@ -281,11 +448,13 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontWeight: '600',
   },
-  label: {
-    color: colors.textSecondary,
-    fontSize: 12,
-    textTransform: 'uppercase',
-    marginTop: 8,
+  shortcutIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(131,111,255,0.28)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   value: {
     color: colors.textPrimary,
@@ -304,9 +473,15 @@ const styles = StyleSheet.create({
     padding: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: 'rgba(255,255,255,0.08)',
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   actionRowLast: {
     borderBottomWidth: 0,
+  },
+  actionContent: {
+    flex: 1,
+    paddingRight: 12,
   },
   actionTitle: {
     color: colors.textPrimary,
@@ -395,6 +570,15 @@ const styles = StyleSheet.create({
   optionChipLabel: {
     color: colors.textPrimary,
     fontWeight: '600',
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
+    borderRadius: radii.md,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    color: colors.textPrimary,
+    marginTop: 8,
   },
 });
 

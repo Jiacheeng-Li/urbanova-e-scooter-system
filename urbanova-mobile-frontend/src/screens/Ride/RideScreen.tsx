@@ -187,8 +187,10 @@ const RideScreen = () => {
         onSelectVehicle={handleMapSelect}
       />
       <View style={styles.overlay}>
-        <Text style={styles.heading}>Good day, rider</Text>
-        <Text style={styles.subheading}>Find URBANOVA vehicles near {location ? 'you' : 'San Francisco'}.</Text>
+        <View style={styles.overlayCard}>
+          <Text style={styles.heading}>Good day, rider</Text>
+          <Text style={styles.subheading}>Find URBANOVA vehicles near {location ? 'you' : 'San Francisco'}.</Text>
+        </View>
         <FlatList
           horizontal
           data={filters}
@@ -273,13 +275,26 @@ const styles = StyleSheet.create({
     paddingTop: 40,
     paddingHorizontal: 20,
   },
+  overlayCard: {
+    backgroundColor: 'rgba(131,111,255,0.92)',
+    borderRadius: radii.lg,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+  },
   heading: {
     fontSize: 24,
     fontWeight: '700',
-    color: colors.textPrimary,
+    color: '#FFFFFF',
   },
   subheading: {
-    color: colors.textSecondary,
+    color: 'rgba(255,255,255,0.9)',
     marginTop: 4,
   },
   bottomSheet: {

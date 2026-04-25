@@ -5,6 +5,8 @@ export interface Vehicle {
   id: string;
   name: string;
   type: VehicleType;
+  modelCode?: string;
+  modelName?: string;
   battery: number;
   distance: number;
   lat: number;
@@ -13,7 +15,7 @@ export interface Vehicle {
   status: VehicleStatus;
   isFavorite?: boolean;
   zoneId?: string;
-  image?: string;
+  image?: string | number;
   hardwareRevision?: string;
 }
 
