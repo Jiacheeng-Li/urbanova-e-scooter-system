@@ -1,85 +1,81 @@
-﻿# URBANOVA – Expo React Native Client
+﻿# URBANOVA - Expo React Native Client
 
-URBANOVA is a shared micromobility client built with Expo + React Native. It now talks directly to the Urbanova Spring Boot backend (located at `../urbanova-e-scooter-system-feature-backend-sprint2/urbanova`) so that login, scooter discovery, hire options, and booking flows are backed by live APIs.
+URBANOVA mobile app built with Expo + React Native and integrated with the Sprint 3 backend in `../urbanova`.
 
 ## Tech stack
 
 - Expo SDK 54 (React Native 0.81, React 19)
 - React Navigation (native stack + bottom tabs)
-- React Query + Axios for API calls
-- Zustand for client-side auth/session state
-- React Native Maps, Expo Location, Linear Gradient, Blur, etc.
+- React Query + Axios
+- Zustand for auth/session state
 
-## Project structure
+## Key Sprint 3 flows implemented
 
+1. Booking lifecycle
+- Update booking (`PATCH /api/v1/bookings/{id}`)
+- Start / end / extend booking (`/start`, `/end`, `/extend`)
+- Timeline display (`GET /api/v1/bookings/{id}/timeline`)
+- Return-zone validation before ending ride (mobile-side geo check against no-parking zones)
+- Return fault reporting (`POST /api/v1/issues`)
+
+2. Payment + confirmation + status
+- Simulated payment in booking detail (`POST /api/v1/bookings/{id}/payments`)
+- Payment records shown in app (`GET /api/v1/bookings/{id}/payments`)
+- Confirmation display + resend (`GET /bookings/{id}/confirmation`, `POST /resend`)
+- Booking/payment status updated and visible in Ride detail + Trips
+
+3. Card binding + account security
+- Card binding during registration (optional)
+- Card management in Wallet (`GET/POST/PATCH/DELETE /api/v1/payment-methods`)
+- Default card switching (`POST /payment-methods/{id}/default`)
+- Profile update + usage summary (`PATCH /users/me`, `GET /users/me/usage-summary`)
+- Forgot/reset password flow in Security Center
+
+## Security behavior
+
+- Access token and refresh token are stored in AsyncStorage keys `accessToken` and `refreshToken`.
+- On 401 responses, local session is cleared automatically.
+- Logout calls backend logout and clears local session.
+- Card UI only displays masked card info (`brand + last4`), never full card number.
+- Sensitive operations include client-side validation:
+  - password strength and confirm match
+  - card number length and expiry format
+  - profile field validation (required full name, phone format)
+- Destructive card operations require explicit user confirmation.
+
+## Running locally
+
+1. Start backend:
+```powershell
+cd ..\urbanova
+mvn spring-boot:run
 ```
-urbanova-mobile/
-├── App.tsx              # Re-exports src/App
-├── app.json             # Expo + native config (apiBaseUrl lives here)
-├── babel.config.js      # Path aliases + Reanimated plugin
-├── src/
-│   ├── App.tsx          # Providers + root navigator
-│   ├── navigation/      # AppNavigator, MainTabs, stack types
-│   ├── screens/         # Auth, Ride, Trips, Wallet, Profile, RideDetail
-│   ├── components/      # Buttons, cards, markers, layout helpers
-│   ├── hooks/           # React Query hooks, Zustand helpers
-│   ├── store/           # Auth + ride selections
-│   ├── services/        # Axios API client (auth, scooters, bookings, hire)
-│   ├── theme/           # Colors, spacing, typography tokens
-│   ├── types/           # Shared domain/view-model interfaces
-│   └── utils/           # Formatters (currency, time)
+
+2. Start mobile app:
+```powershell
+cd ..\urbanova-mobile-frontend
+npm install
+npm run start
 ```
 
-## Backend integration
-
-1. **Run the backend**
-   ```powershell
-   cd ..\urbanova-e-scooter-system-feature-backend-sprint2\urbanova
-   .\mvnw.cmd spring-boot:run
-   ```
-   By default the server listens on `http://localhost:8080` and connects to the MySQL instance defined in `src/main/resources/application.properties`.
-
-2. **Configure the mobile API base URL**
-   - `app.json -> expo.extra.apiBaseUrl` defaults to `http://10.0.2.2:8080` (Android emulator loopback).
-   - For iOS simulator or web, change it to `http://127.0.0.1:8080`.
-   - For a physical device, use your machine’s LAN IP, e.g. `http://192.168.1.20:8080`.
-   - The Axios client automatically appends `/api/v1/...` paths and injects the JWT Bearer token once you log in.
-
-3. **Available endpoints consumed by the app**
-   - `POST /api/v1/auth/register` / `POST /api/v1/auth/login` – email + password auth returning JWT + user profile.
-   - `GET /api/v1/users/me` – used to hydrate the profile tab on launch.
-   - `GET /api/v1/scooters/map-points` – feeds the map/list of nearby vehicles.
-   - `GET /api/v1/hire-options` – powers the hire-plan picker on the Ride + Wallet screens.
-   - `POST /api/v1/bookings` / `GET /api/v1/bookings` / `GET /api/v1/bookings/{id}` – creating, listing, and viewing bookings (Trips tab + Ride detail).
-
-4. **Auth flow**
-   - Login & register screens now ask for email + password per backend contract (password ≥ 8 chars).
-   - JWT tokens are stored in `AsyncStorage` and automatically injected into requests. Invalid/expired tokens clear local state and return to the login screen.
-
-5. **Remaining mock data**
-   - Wallet transactions still use `src/data/transactions.ts` because the backend has no finance API yet.
-   - Ride zones overlays remain mocked (`src/data/zones.ts`). They can be swapped once the backend exposes geo-fence polygons.
-
-## Running the mobile app
-
-1. Install dependencies (already present, but run once after pulling):
-   ```bash
-   npm install
-   ```
-2. Start Metro / Expo:
-   ```bash
-   npm run start
-   ```
-3. Launch on your target:
-   - Android emulator or device: `npm run android`
-   - iOS simulator (macOS): `npm run ios`
-   - Web preview for layout: `npm run web`
-
-Expo Go or a custom dev client can scan the Metro QR to load URBANOVA. Ensure the backend is reachable from the device (adjust `apiBaseUrl` if necessary).
+3. Configure API base URL in `app.json -> expo.extra.apiBaseUrl` for emulator/device LAN.
 
 ## Notes
 
-- Path aliases (`@components`, `@screens`, `@models`, etc.) are configured in both `babel.config.js` and `tsconfig.json`.
-- React Native Reanimated **must** remain the last Babel plugin.
-- Location & maps permissions are already declared in `app.json`. For production you should add a real Google Maps API key inside the `react-native-maps` plugin section and configure HTTPS for the backend.
-- To integrate additional backend modules, add strongly typed service methods under `src/services/api.ts` and consume them through hooks (preferred) so state and error handling stay centralized.
+- Currency display is GBP.
+- Return-zone validation currently uses mobile-side zone polygons (`src/data/zones.ts`) because backend does not expose dedicated return-zone validation endpoint yet.
+
+## Vehicle image assets
+
+Ride screen vehicle cards now load local model images from `assets/vehicle-models/`.
+
+Replace these files with your own PNG assets (keep file names unchanged):
+
+- `assets/vehicle-models/andromeda.png`
+- `assets/vehicle-models/galaxy-seat.png`
+- `assets/vehicle-models/lunar-lite.png`
+- `assets/vehicle-models/nebula-family.png`
+- `assets/vehicle-models/orion-ultra.png`
+- `assets/vehicle-models/urbanova-default.png`
+
+Type-to-image mapping is defined in `src/data/vehicleImages.ts`.

@@ -1,5 +1,6 @@
 ﻿import { useQuery } from '@tanstack/react-query';
 import { ScooterService, ScooterMapPoint } from '@services/api';
+import { getVehicleModelImage } from '@data/vehicleImages';
 
 export const useVehicles = () => {
   const query = useQuery({
@@ -15,8 +16,10 @@ export const useVehicles = () => {
 
 export const mapPointToVehicle = (point: ScooterMapPoint) => ({
   id: point.scooterId,
-  name: `Urbanova ${point.scooterId.slice(-4)}`,
+  name: `URBANOVA ${point.scooterId.slice(-4)}`,
   type: 'scooter' as const,
+  modelCode: point.typeCode,
+  modelName: point.typeDisplayName || point.typeCode || 'Standard',
   battery: point.batteryPercent,
   distance: 0,
   lat: point.lat,
@@ -24,7 +27,7 @@ export const mapPointToVehicle = (point: ScooterMapPoint) => ({
   pricePerMin: 1.99,
   status: mapStatus(point.status),
   zoneId: point.zone ?? undefined,
-  image: `https://source.unsplash.com/collection/190727/200x200?sig=${point.scooterId.slice(-3)}`,
+  image: getVehicleModelImage(point.typeCode),
 });
 
 const mapStatus = (apiStatus: string): 'available' | 'low-battery' | 'reserved' | 'in-ride' => {

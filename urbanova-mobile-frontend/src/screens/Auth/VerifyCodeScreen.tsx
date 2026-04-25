@@ -2,19 +2,23 @@
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
+  View,
 } from 'react-native';
 import ScreenContainer from '@components/ScreenContainer';
 import PrimaryButton from '@components/PrimaryButton';
 import { RootStackParamList } from '@models/index';
 import { colors } from '@theme/colors';
-import { AuthService } from '@services/api';
+import { AuthService, PaymentMethodService } from '@services/api';
 import { useAuthStore } from '@store/useAuthStore';
+import { formatCardNumberForInput, parseExpiry, sanitizeCardNumber, validatePasswordStrength } from '@utils/security';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Register'>;
 
@@ -24,6 +28,13 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+
+  const [bindCard, setBindCard] = useState(false);
+  const [cardBrand, setCardBrand] = useState('VISA');
+  const [cardNumber, setCardNumber] = useState('');
+  const [cardExpiry, setCardExpiry] = useState('');
+  const [cardLabel, setCardLabel] = useState('Primary card');
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const setAuthPayload = useAuthStore((state) => state.setAuthPayload);
@@ -37,13 +48,36 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
       setError('Please provide your email');
       return;
     }
-    if (!password.trim() || password.length < 8) {
-      setError('Password must be at least 8 characters');
+
+    const passwordError = validatePasswordStrength(password.trim());
+    if (passwordError) {
+      setError(passwordError);
       return;
     }
     if (password !== confirmPassword) {
       setError('Passwords do not match');
       return;
+    }
+
+    let expiryMonth = 0;
+    let expiryYear = 0;
+    if (bindCard) {
+      const parsedExpiry = parseExpiry(cardExpiry);
+      const digits = sanitizeCardNumber(cardNumber);
+      if (!cardBrand.trim()) {
+        setError('Card brand is required when binding a card');
+        return;
+      }
+      if (digits.length < 12 || digits.length > 19) {
+        setError('Card number must be between 12 and 19 digits');
+        return;
+      }
+      if (!parsedExpiry) {
+        setError('Expiry must be in MMYY format');
+        return;
+      }
+      expiryMonth = parsedExpiry.month;
+      expiryYear = parsedExpiry.year;
     }
 
     setError('');
@@ -56,6 +90,22 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
         phone: phone.trim() || undefined,
       });
       setAuthPayload(payload);
+
+      if (bindCard) {
+        try {
+          await PaymentMethodService.create({
+            brand: cardBrand.trim().toUpperCase(),
+            cardNumber: sanitizeCardNumber(cardNumber),
+            expiryMonth,
+            expiryYear,
+            label: cardLabel.trim() || 'Primary card',
+            isDefault: true,
+          });
+        } catch (cardError: any) {
+          const cardErrorMessage = cardError?.response?.data?.error?.message || 'Card binding failed after registration.';
+          Alert.alert('Account created', `${cardErrorMessage} You can add the card later in Wallet.`);
+        }
+      }
     } catch (err: any) {
       const msg = err?.response?.data?.error?.message || 'Registration failed, please try again.';
       setError(msg);
@@ -66,7 +116,7 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScreenContainer contentStyle={styles.content}>
+      <ScreenContainer scrollable contentStyle={styles.content}>
         <Text style={styles.title}>Create a URBANOVA account</Text>
         <Text style={styles.subtitle}>Fill in the details below to unlock your rides.</Text>
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
@@ -110,10 +160,10 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
           }}
         />
 
-        <Text style={styles.label}>Password (min 8 characters)</Text>
+        <Text style={styles.label}>Password</Text>
         <TextInput
           style={styles.input}
-          placeholder="Enter your password"
+          placeholder="At least 8 chars, A-z, 0-9"
           placeholderTextColor={colors.textMuted}
           secureTextEntry
           value={password}
@@ -136,6 +186,75 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
           }}
         />
 
+        <View style={styles.cardBindHeader}>
+          <Text style={styles.label}>Bind a payment card now</Text>
+          <Pressable
+            onPress={() => {
+              setBindCard((prev) => !prev);
+              setError('');
+            }}
+            style={[styles.toggleChip, bindCard && styles.toggleChipActive]}
+          >
+            <Text style={styles.toggleChipText}>{bindCard ? 'Enabled' : 'Optional'}</Text>
+          </Pressable>
+        </View>
+
+        {bindCard ? (
+          <>
+            <Text style={styles.label}>Card brand</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="VISA / MASTERCARD"
+              placeholderTextColor={colors.textMuted}
+              autoCapitalize="characters"
+              value={cardBrand}
+              onChangeText={(text) => {
+                setCardBrand(text);
+                setError('');
+              }}
+            />
+
+            <Text style={styles.label}>Card number</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="4111 1111 1111 1111"
+              placeholderTextColor={colors.textMuted}
+              keyboardType="number-pad"
+              value={cardNumber}
+              onChangeText={(text) => {
+                setCardNumber(formatCardNumberForInput(text));
+                setError('');
+              }}
+            />
+
+            <Text style={styles.label}>Expiry (MMYY)</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="1230"
+              placeholderTextColor={colors.textMuted}
+              keyboardType="number-pad"
+              value={cardExpiry}
+              onChangeText={(text) => {
+                const digits = text.replace(/\D/g, '').slice(0, 4);
+                setCardExpiry(digits);
+                setError('');
+              }}
+            />
+
+            <Text style={styles.label}>Card label (optional)</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Personal card"
+              placeholderTextColor={colors.textMuted}
+              value={cardLabel}
+              onChangeText={(text) => {
+                setCardLabel(text);
+                setError('');
+              }}
+            />
+          </>
+        ) : null}
+
         <PrimaryButton label={loading ? '' : 'Sign up'} onPress={handleRegister} disabled={loading} />
         {loading && <ActivityIndicator color={colors.lime} style={styles.loader} />}
 
@@ -153,6 +272,7 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
 const styles = StyleSheet.create({
   content: {
     paddingTop: 32,
+    paddingBottom: 48,
   },
   title: {
     fontSize: 28,
@@ -177,6 +297,28 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     fontSize: 16,
     backgroundColor: colors.card,
+  },
+  cardBindHeader: {
+    marginTop: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  toggleChip: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  toggleChipActive: {
+    borderColor: colors.lime,
+    backgroundColor: 'rgba(131,111,255,0.12)',
+  },
+  toggleChipText: {
+    color: colors.textPrimary,
+    fontWeight: '600',
+    fontSize: 12,
   },
   helper: {
     color: colors.textMuted,

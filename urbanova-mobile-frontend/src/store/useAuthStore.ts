@@ -19,7 +19,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   setAuthPayload: (payload) => set({ isAuthenticated: true, user: payload.user }),
   setUser: (user) => set({ user }),
   logout: async () => {
-    await AsyncStorage.removeItem('accessToken');
+    await AuthService.logout();
     set({ isAuthenticated: false, user: null });
   },
   checkAuth: async () => {
