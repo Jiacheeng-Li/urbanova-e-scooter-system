@@ -17,17 +17,17 @@
             >
               <el-menu-item index="/hire-options">
                 <el-icon><Tickets /></el-icon>
-                租赁选项
+                Hire Options
               </el-menu-item>
 
               <el-menu-item index="/booking" v-if="authStore.isLoggedIn">
                 <el-icon><Calendar /></el-icon>
-                预订滑板车
+                Book Scooter
               </el-menu-item>
 
               <el-menu-item index="/my-bookings" v-if="authStore.isLoggedIn">
                 <el-icon><List /></el-icon>
-                我的预订
+                My Bookings
               </el-menu-item>
             </el-menu>
 
@@ -36,21 +36,21 @@
                 <el-dropdown @command="handleUserCommand">
                   <span class="user-info">
                     <el-icon><User /></el-icon>
-                    {{ authStore.currentUser?.fullName || '用户' }}
+                    {{ authStore.currentUser?.fullName || 'User' }}
                     <el-icon><ArrowDown /></el-icon>
                   </span>
                   <template #dropdown>
                     <el-dropdown-menu>
                       <el-dropdown-item command="profile">
-                        个人信息
+                        Profile
                       </el-dropdown-item>
-                      <el-dropdown-item 
-                        command="admin" 
+                      <el-dropdown-item
+                        command="admin"
                         v-if="authStore.currentUser?.role === 'MANAGER'">
-                        管理界面
+                        Admin Panel
                       </el-dropdown-item>
                       <el-dropdown-item command="logout" divided>
-                        退出登录
+                        Logout
                       </el-dropdown-item>
                     </el-dropdown-menu>
                   </template>
@@ -58,8 +58,8 @@
               </template>
 
               <template v-else>
-                <el-button @click="goToLogin">登录</el-button>
-                <el-button type="primary" @click="goToRegister">注册</el-button>
+                <el-button @click="goToLogin">Login</el-button>
+                <el-button type="primary" @click="goToRegister">Register</el-button>
               </template>
             </div>
           </div>
@@ -70,7 +70,7 @@
         </el-main>
 
         <el-footer class="app-footer">
-          <p>&copy; 2026 Urbanova 电动滑板车租赁系统</p>
+          <p>&copy; 2026 Urbanova Electric Scooter Rental System</p>
         </el-footer>
       </el-container>
     </template>

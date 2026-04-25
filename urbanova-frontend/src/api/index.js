@@ -81,6 +81,16 @@ export const scooterApi = {
   // 根据状态获取滑板车ID列表
   getScooterIdsByStatus(status) {
     return api.get('/scooters/ids', { params: { status } })
+  },
+
+  // 获取所有滑板车（用户端）
+  list() {
+    return api.get('/scooters')
+  },
+
+  // 获取滑板车详情
+  getDetail(scooterId) {
+    return api.get(`/scooters/${scooterId}`)
   }
 }
 
@@ -135,6 +145,11 @@ export const adminHireOptionsApi = {
   // 禁用租赁选项
   disable(hireOptionId) {
     return api.delete(`/admin/hire-options/${hireOptionId}`)
+  },
+
+  // 获取单个租赁选项（如果需要）
+  get(hireOptionId) {
+    return api.get(`/admin/hire-options/${hireOptionId}`)
   }
 }
 
@@ -164,6 +179,164 @@ export const adminScootersApi = {
   // 批量更新滑板车状态
   bulkUpdateStatus(data) {
     return api.post('/admin/scooters/bulk-status', data)
+  }
+}
+
+// ==================== Admin Analytics API ====================
+
+export const adminAnalyticsApi = {
+  // 收入估算
+  getRevenueEstimate(startDate, endDate) {
+    const params = {}
+    if (startDate) params.startDate = startDate
+    if (endDate) params.endDate = endDate
+    return api.get('/admin/analytics/revenue/estimate', { params })
+  },
+
+  // 按租赁选项周收入
+  getWeeklyByHireOption(startDate) {
+    const params = {}
+    if (startDate) params.startDate = startDate
+    return api.get('/admin/analytics/revenue/weekly-by-hire-option', { params })
+  },
+
+  // 每日收入
+  getDailyCombined(startDate) {
+    const params = {}
+    if (startDate) params.startDate = startDate
+    return api.get('/admin/analytics/revenue/daily-combined', { params })
+  },
+
+  // 周收入图表数据
+  getWeeklyChart(startDate) {
+    const params = {}
+    if (startDate) params.startDate = startDate
+    return api.get('/admin/analytics/revenue/weekly-chart', { params })
+  },
+
+  // 高频用户列表
+  getFrequentUsers() {
+    return api.get('/admin/analytics/usage/frequent-users')
+  }
+}
+
+// ==================== Admin Bookings API ====================
+
+export const adminBookingsApi = {
+  // 获取预订列表（管理端）
+  list(status, paymentStatus, customerType) {
+    const params = {}
+    if (status) params.status = status
+    if (paymentStatus) params.paymentStatus = paymentStatus
+    if (customerType) params.customerType = customerType
+    return api.get('/admin/bookings', { params })
+  },
+
+  // 获取预订详情（管理端）
+  getDetail(bookingId) {
+    return api.get(`/admin/bookings/${bookingId}`)
+  },
+
+  // 经理覆盖修改预订
+  override(bookingId, data) {
+    return api.patch(`/admin/bookings/${bookingId}/override`, data)
+  }
+}
+
+// ==================== Admin Users API ====================
+
+export const adminUsersApi = {
+  // 获取用户列表
+  list(role, accountStatus) {
+    const params = {}
+    if (role) params.role = role
+    if (accountStatus) params.accountStatus = accountStatus
+    return api.get('/admin/users', { params })
+  },
+
+  // 获取用户详情
+  getUser(userId) {
+    return api.get(`/admin/users/${userId}`)
+  },
+
+  // 更新用户状态
+  updateStatus(userId, accountStatus) {
+    return api.patch(`/admin/users/${userId}/status`, { accountStatus })
+  },
+
+  // 获取用户预订历史
+  getUserBookings(userId) {
+    return api.get(`/admin/users/${userId}/bookings`)
+  },
+
+  // 获取审计日志
+  getAuditLogs(action, limit) {
+    const params = {}
+    if (action) params.action = action
+    if (limit) params.limit = limit
+    return api.get('/admin/audit-logs', { params })
+  }
+}
+
+// ==================== Staff Bookings API (员工端 - 游客预订) ====================
+
+export const staffBookingsApi = {
+  // 创建游客预订
+  createGuestBooking(data) {
+    return api.post('/staff/bookings/guest', data)
+  },
+
+  // 获取游客预订详情
+  getGuestBooking(bookingId) {
+    return api.get(`/staff/bookings/guest/${bookingId}`)
+  }
+}
+
+// ==================== Admin Issues API ====================
+
+export const adminIssuesApi = {
+  // 获取问题列表（管理端）
+  listAdmin(status, priority) {
+    const params = {}
+    if (status) params.status = status
+    if (priority) params.priority = priority
+    return api.get('/admin/issues', { params })
+  },
+
+  // 创建问题（管理端）
+  createIssue(data) {
+    return api.post('/issues', data)
+  },
+
+  // 获取问题详情（管理端）
+  getIssue(issueId) {
+    return api.get(`/issues/${issueId}`)
+  },
+
+  // 更新优先级
+  updatePriority(issueId, priority) {
+    return api.patch(`/admin/issues/${issueId}/priority`, { priority })
+  },
+
+  // 更新状态
+  updateStatus(issueId, status) {
+    return api.patch(`/admin/issues/${issueId}/status`, { status })
+  },
+
+  // 解决问题
+  resolveIssue(issueId, feedback) {
+    const data = feedback ? { feedback } : {}
+    return api.post(`/admin/issues/${issueId}/resolve`, data)
+  },
+
+  // 添加评论
+  addComment(issueId, message) {
+    return api.post(`/issues/${issueId}/comments`, { message })
+  },
+
+  // 获取高优先级问题
+  listHighPriority() {
+    return api.get('/admin/issues/high-priority')
   }
 }
 

@@ -3,8 +3,8 @@
     <el-card class="register-card">
       <template #header>
         <div class="card-header">
-          <h2>注册 Urbanova</h2>
-          <p class="subtitle">加入电动滑板车租赁服务</p>
+          <h2>Register for Urbanova</h2>
+          <p class="subtitle">Join the Electric Scooter Rental Service</p>
         </div>
       </template>
 
@@ -15,49 +15,49 @@
         label-position="top"
         @submit.prevent="handleRegister"
       >
-        <el-form-item label="用户名" prop="fullName">
+        <el-form-item label="Full Name" prop="fullName">
           <el-input
             v-model="formData.fullName"
-            placeholder="请输入用户名"
+            placeholder="Enter full name"
             prefix-icon="User"
             size="large"
           />
         </el-form-item>
 
-        <el-form-item label="邮箱" prop="email">
+        <el-form-item label="Email" prop="email">
           <el-input
             v-model="formData.email"
-            placeholder="请输入邮箱"
+            placeholder="Enter email"
             prefix-icon="Message"
             size="large"
           />
         </el-form-item>
 
-        <el-form-item label="手机号（可选）" prop="phone">
+        <el-form-item label="Phone (Optional)" prop="phone">
           <el-input
             v-model="formData.phone"
-            placeholder="请输入手机号"
+            placeholder="Enter phone number"
             prefix-icon="Phone"
             size="large"
           />
         </el-form-item>
 
-        <el-form-item label="密码" prop="password">
+        <el-form-item label="Password" prop="password">
           <el-input
             v-model="formData.password"
             type="password"
-            placeholder="请输入密码（至少8个字符）"
+            placeholder="Enter password (at least 8 characters)"
             prefix-icon="Lock"
             size="large"
             show-password
           />
         </el-form-item>
 
-        <el-form-item label="确认密码" prop="confirmPassword">
+        <el-form-item label="Confirm Password" prop="confirmPassword">
           <el-input
             v-model="formData.confirmPassword"
             type="password"
-            placeholder="请再次输入密码"
+            placeholder="Confirm password"
             prefix-icon="Lock"
             size="large"
             show-password
@@ -73,14 +73,14 @@
             class="register-button"
             @click="handleRegister"
           >
-            注册
+            Register
           </el-button>
         </el-form-item>
       </el-form>
 
       <div class="footer-links">
-        <span>已有账号？</span>
-        <el-link type="primary" @click="goToLogin">立即登录</el-link>
+        <span>Already have an account?</span>
+        <el-link type="primary" @click="goToLogin">Login Now</el-link>
       </div>
     </el-card>
   </div>
@@ -107,7 +107,7 @@ const formData = reactive({
 
 const validateConfirmPassword = (rule, value, callback) => {
   if (value !== formData.password) {
-    callback(new Error('两次输入的密码不一致'))
+    callback(new Error('Passwords do not match'))
   } else {
     callback()
   }
@@ -115,22 +115,22 @@ const validateConfirmPassword = (rule, value, callback) => {
 
 const formRules = {
   fullName: [
-    { required: true, message: '请输入用户名', trigger: 'blur' },
-    { max: 100, message: '用户名不能超过100个字符', trigger: 'blur' }
+    { required: true, message: 'Please enter full name', trigger: 'blur' },
+    { max: 100, message: 'Full name cannot exceed 100 characters', trigger: 'blur' }
   ],
   email: [
-    { required: true, message: '请输入邮箱', trigger: 'blur' },
-    { type: 'email', message: '请输入有效的邮箱地址', trigger: 'blur' }
+    { required: true, message: 'Please enter email', trigger: 'blur' },
+    { type: 'email', message: 'Please enter a valid email address', trigger: 'blur' }
   ],
   phone: [
-    { max: 30, message: '手机号不能超过30个字符', trigger: 'blur' }
+    { max: 30, message: 'Phone number cannot exceed 30 characters', trigger: 'blur' }
   ],
   password: [
-    { required: true, message: '请输入密码', trigger: 'blur' },
-    { min: 8, max: 72, message: '密码长度在 8 到 72 个字符之间', trigger: 'blur' }
+    { required: true, message: 'Please enter password', trigger: 'blur' },
+    { min: 8, max: 72, message: 'Password must be between 8 and 72 characters', trigger: 'blur' }
   ],
   confirmPassword: [
-    { required: true, message: '请再次输入密码', trigger: 'blur' },
+    { required: true, message: 'Please confirm password', trigger: 'blur' },
     { validator: validateConfirmPassword, trigger: 'blur' }
   ]
 }
@@ -144,10 +144,10 @@ const handleRegister = async () => {
       const result = await authStore.register(registerData)
 
       if (result.success) {
-        ElMessage.success(`注册成功，欢迎 ${result.user.fullName}！`)
+        ElMessage.success(`Registration successful! Welcome ${result.user.fullName}!`)
         router.push('/hire-options')
       } else {
-        ElMessage.error(result.message || '注册失败')
+        ElMessage.error(result.message || 'Registration failed')
       }
     }
   })
@@ -157,7 +157,7 @@ onMounted(() => {
   // 检查是否已登录
   const token = localStorage.getItem('accessToken')
   if (token) {
-    ElMessage.warning('您已登录，无需再次注册')
+    ElMessage.warning('You are already logged in')
     router.push('/hire-options')
   }
 })

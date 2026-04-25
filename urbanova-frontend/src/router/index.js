@@ -10,38 +10,38 @@ const routes = [
     path: '/login',
     name: 'Login',
     component: () => import('../views/Login.vue'),
-    meta: { title: '登录' }
+    meta: { title: 'Login' }
   },
   {
     path: '/register',
     name: 'Register',
     component: () => import('../views/Register.vue'),
-    meta: { title: '注册' }
+    meta: { title: 'Register' }
   },
   {
     path: '/hire-options',
     name: 'HireOptions',
     component: () => import('../views/HireOptions.vue'),
-    meta: { title: '租赁选项', requiresAuth: false }
+    meta: { title: 'Hire Options', requiresAuth: false }
   },
   {
     path: '/booking',
     name: 'Booking',
     component: () => import('../views/Booking.vue'),
-    meta: { title: '预订滑板车', requiresAuth: true }
+    meta: { title: 'Book Scooter', requiresAuth: true }
   },
   {
     path: '/my-bookings',
     name: 'MyBookings',
     component: () => import('../views/MyBookings.vue'),
-    meta: { title: '我的预订', requiresAuth: true }
+    meta: { title: 'My Bookings', requiresAuth: true }
   },
   {
     path: '/admin',
     name: 'Admin',
     component: () => import('../views/admin/Dashboard.vue'),
-    meta: { 
-      title: '管理后台', 
+    meta: {
+      title: 'Admin Dashboard',
       requiresAuth: true,
       requiresManager: true
     },
@@ -51,19 +51,37 @@ const routes = [
         path: 'dashboard',
         name: 'AdminDashboard',
         component: () => import('../views/admin/DashboardContent.vue'),
-        meta: { title: '仪表盘' }
+        meta: { title: 'Dashboard' }
       },
       {
         path: 'hire-options',
         name: 'AdminHireOptions',
         component: () => import('../views/admin/HireOptionManage.vue'),
-        meta: { title: '租赁选项管理' }
+        meta: { title: 'Manage Hire Options' }
       },
       {
         path: 'scooters',
         name: 'AdminScooters',
         component: () => import('../views/admin/ScooterManage.vue'),
-        meta: { title: '滑板车管理' }
+        meta: { title: 'Manage Scooters' }
+      },
+      {
+        path: 'bookings',
+        name: 'AdminBookings',
+        component: () => import('../views/admin/BookingManage.vue'),
+        meta: { title: 'Manage Bookings' }
+      },
+      {
+        path: 'issues',
+        name: 'AdminIssues',
+        component: () => import('../views/admin/IssueManage.vue'),
+        meta: { title: 'Issue Management' }
+      },
+      {
+        path: 'users',
+        name: 'AdminUsers',
+        component: () => import('../views/admin/UserManage.vue'),
+        meta: { title: 'User Management' }
       }
     ]
   }
@@ -88,11 +106,11 @@ router.beforeEach(async (to, from, next) => {
   if (to.meta.requiresAuth && !token) {
     try {
       await ElMessageBox.confirm(
-        '该内容需要登录才能使用',
-        '提示',
+        'This content requires login to access',
+        'Notice',
         {
-          confirmButtonText: '前往登录',
-          cancelButtonText: '取消',
+          confirmButtonText: 'Go to Login',
+          cancelButtonText: 'Cancel',
           type: 'warning'
         }
       )

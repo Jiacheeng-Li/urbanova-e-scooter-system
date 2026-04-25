@@ -1,13 +1,13 @@
 <template>
   <div class="my-bookings-container">
-    <h1 class="page-title">我的预订</h1>
-    <p class="page-description">查看和管理您的滑板车预订</p>
+    <h1 class="page-title">My Bookings</h1>
+    <p class="page-description">View and manage your scooter bookings</p>
 
     <el-tabs v-model="activeTab" v-loading="loading">
-      <el-tab-pane label="当前预订" name="active">
+      <el-tab-pane label="Active Bookings" name="active">
         <div v-if="activeBookings.length === 0" class="empty-state">
-          <el-empty description="暂无当前预订">
-            <el-button type="primary" @click="goToBooking">立即预订</el-button>
+          <el-empty description="No active bookings">
+            <el-button type="primary" @click="goToBooking">Book Now</el-button>
           </el-empty>
         </div>
         <el-row v-else :gutter="20">
@@ -29,16 +29,16 @@
               </template>
 
               <el-descriptions :column="1" size="small">
-                <el-descriptions-item label="滑板车">
+                <el-descriptions-item label="Scooter">
                   {{ booking.scooterId }}
                 </el-descriptions-item>
-                <el-descriptions-item label="开始时间">
+                <el-descriptions-item label="Start Time">
                   {{ formatDateTime(booking.startAt) }}
                 </el-descriptions-item>
-                <el-descriptions-item label="结束时间">
+                <el-descriptions-item label="End Time">
                   {{ formatDateTime(booking.endAt) }}
                 </el-descriptions-item>
-                <el-descriptions-item label="价格">
+                <el-descriptions-item label="Price">
                   <strong>£{{ booking.priceBreakdown.finalPrice }}</strong>
                 </el-descriptions-item>
               </el-descriptions>
@@ -49,7 +49,7 @@
                   size="small"
                   @click="handleCancel(booking)"
                 >
-                  取消预订
+                  Cancel Booking
                 </el-button>
               </div>
             </el-card>
@@ -57,9 +57,9 @@
         </el-row>
       </el-tab-pane>
 
-      <el-tab-pane label="已取消" name="cancelled">
+      <el-tab-pane label="Cancelled" name="cancelled">
         <div v-if="cancelledBookings.length === 0" class="empty-state">
-          <el-empty description="暂无已取消的预订" />
+          <el-empty description="No cancelled bookings" />
         </div>
         <el-row v-else :gutter="20">
           <el-col
@@ -73,24 +73,24 @@
               <template #header>
                 <div class="booking-header">
                   <span class="booking-id">{{ booking.bookingId }}</span>
-                  <el-tag type="danger" size="small">已取消</el-tag>
+                  <el-tag type="danger" size="small">Cancelled</el-tag>
                 </div>
               </template>
 
               <el-descriptions :column="1" size="small">
-                <el-descriptions-item label="滑板车">
+                <el-descriptions-item label="Scooter">
                   {{ booking.scooterId }}
                 </el-descriptions-item>
-                <el-descriptions-item label="开始时间">
+                <el-descriptions-item label="Start Time">
                   {{ formatDateTime(booking.startAt) }}
                 </el-descriptions-item>
-                <el-descriptions-item label="结束时间">
+                <el-descriptions-item label="End Time">
                   {{ formatDateTime(booking.endAt) }}
                 </el-descriptions-item>
-                <el-descriptions-item label="价格">
+                <el-descriptions-item label="Price">
                   £{{ booking.priceBreakdown.finalPrice }}
                 </el-descriptions-item>
-                <el-descriptions-item v-if="booking.cancelledAt" label="取消时间">
+                <el-descriptions-item v-if="booking.cancelledAt" label="Cancelled At">
                   {{ formatDateTime(booking.cancelledAt) }}
                 </el-descriptions-item>
               </el-descriptions>
@@ -103,20 +103,20 @@
     <!-- 取消确认对话框 -->
     <el-dialog
       v-model="cancelDialogVisible"
-      title="取消预订"
+      title="Cancel Booking"
       width="400px"
     >
-      <p>确定要取消预订 <strong>{{ selectedBooking?.bookingId }}</strong> 吗？</p>
+      <p>Are you sure you want to cancel booking <strong>{{ selectedBooking?.bookingId }}</strong>?</p>
       <el-input
         v-model="cancelReason"
         type="textarea"
-        placeholder="请输入取消原因（可选）"
+        placeholder="Please enter cancellation reason (optional)"
         :rows="3"
       />
       <template #footer>
-        <el-button @click="cancelDialogVisible = false">关闭</el-button>
+        <el-button @click="cancelDialogVisible = false">Close</el-button>
         <el-button type="danger" :loading="cancelling" @click="confirmCancel">
-          确认取消
+          Confirm Cancel
         </el-button>
       </template>
     </el-dialog>
@@ -149,7 +149,7 @@ const cancelledBookings = computed(() =>
 
 const formatDateTime = (dateStr) => {
   if (!dateStr) return '-'
-  return new Date(dateStr).toLocaleString('zh-CN')
+  return new Date(dateStr).toLocaleString()
 }
 
 const getStatusType = (status) => {
@@ -174,7 +174,7 @@ const loadBookings = async () => {
     } else {
       bookings.value = []
     }
-    console.error('获取预订列表失败:', error)
+    console.error('Failed to fetch bookings:', error)
   } finally {
     loading.value = false
   }
@@ -201,12 +201,12 @@ const confirmCancel = async () => {
     )
 
     cancelDialogVisible.value = false
-    ElMessage.success('预订已取消')
+    ElMessage.success('Booking cancelled')
 
     // 重新加载预订列表
     await loadBookings()
   } catch (error) {
-    ElMessage.error(error.response?.data?.error?.message || '取消失败')
+    ElMessage.error(error.response?.data?.error?.message || 'Cancellation failed')
   } finally {
     cancelling.value = false
   }

@@ -30,7 +30,7 @@ export const useAuthStore = defineStore('auth', {
       } catch (error) {
         return {
           success: false,
-          message: error.response?.data?.error?.message || '登录失败'
+          message: error.response?.data?.error?.message || 'Login failed'
         }
       } finally {
         this.loading = false
@@ -53,7 +53,7 @@ export const useAuthStore = defineStore('auth', {
       } catch (error) {
         return {
           success: false,
-          message: error.response?.data?.error?.message || '注册失败'
+          message: error.response?.data?.error?.message || 'Registration failed'
         }
       } finally {
         this.loading = false

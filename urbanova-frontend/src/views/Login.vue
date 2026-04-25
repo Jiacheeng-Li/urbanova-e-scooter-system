@@ -3,8 +3,8 @@
     <el-card class="login-card">
       <template #header>
         <div class="card-header">
-          <h2>登录 Urbanova</h2>
-          <p class="subtitle">电动滑板车租赁系统</p>
+          <h2>Login to Urbanova</h2>
+          <p class="subtitle">Electric Scooter Rental System</p>
         </div>
       </template>
 
@@ -15,20 +15,20 @@
         label-position="top"
         @submit.prevent="handleLogin"
       >
-        <el-form-item label="邮箱" prop="email">
+        <el-form-item label="Email" prop="email">
           <el-input
             v-model="formData.email"
-            placeholder="请输入邮箱"
+            placeholder="Enter email"
             prefix-icon="Message"
             size="large"
           />
         </el-form-item>
 
-        <el-form-item label="密码" prop="password">
+        <el-form-item label="Password" prop="password">
           <el-input
             v-model="formData.password"
             type="password"
-            placeholder="请输入密码"
+            placeholder="Enter password"
             prefix-icon="Lock"
             size="large"
             show-password
@@ -44,14 +44,14 @@
             class="login-button"
             @click="handleLogin"
           >
-            登录
+            Login
           </el-button>
         </el-form-item>
       </el-form>
 
       <div class="footer-links">
-        <span>还没有账号？</span>
-        <el-link type="primary" @click="goToRegister">立即注册</el-link>
+        <span>Don't have an account?</span>
+        <el-link type="primary" @click="goToRegister">Register Now</el-link>
       </div>
     </el-card>
   </div>
@@ -76,12 +76,12 @@ const formData = reactive({
 
 const formRules = {
   email: [
-    { required: true, message: '请输入邮箱', trigger: 'blur' },
-    { type: 'email', message: '请输入有效的邮箱地址', trigger: 'blur' }
+    { required: true, message: 'Please enter email', trigger: 'blur' },
+    { type: 'email', message: 'Please enter a valid email address', trigger: 'blur' }
   ],
   password: [
-    { required: true, message: '请输入密码', trigger: 'blur' },
-    { min: 8, message: '密码至少8个字符', trigger: 'blur' }
+    { required: true, message: 'Please enter password', trigger: 'blur' },
+    { min: 8, message: 'Password must be at least 8 characters', trigger: 'blur' }
   ]
 }
 
@@ -93,14 +93,14 @@ const handleLogin = async () => {
       const result = await authStore.login(formData)
 
       if (result.success) {
-        ElMessage.success(`欢迎回来，${result.user.fullName}！`)
+        ElMessage.success(`Welcome back, ${result.user.fullName}!`)
 
         const redirect = route.query.redirect || '/hire-options'
         router.push(redirect)
       } else {
         // 登录失败时清空密码
         formData.password = ''
-        ElMessage.error(result.message || '登录失败')
+        ElMessage.error(result.message || 'Login failed')
       }
     }
   })
@@ -109,7 +109,7 @@ const handleLogin = async () => {
 onMounted(() => {
   // 检查是否有未知错误参数
   if (route.query.error === 'unknown') {
-    ElMessage.error('发生未知错误，请联系管理员')
+    ElMessage.error('An unknown error occurred, please contact administrator')
   }
 })
 
