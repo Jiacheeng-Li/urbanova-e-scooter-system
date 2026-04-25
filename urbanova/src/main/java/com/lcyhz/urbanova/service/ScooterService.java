@@ -9,9 +9,16 @@ import com.lcyhz.urbanova.vo.scooter.BulkScooterStatusUpdateVo;
 import com.lcyhz.urbanova.vo.scooter.ScooterMapPointVo;
 import com.lcyhz.urbanova.vo.scooter.ScooterIdsByStatusVo;
 
+import java.util.Map;
 import java.util.List;
 
 public interface ScooterService {
+    List<Map<String, Object>> listPublicScooters(String status, String typeCode, String zone);
+
+    Map<String, Object> getScooterDetail(String scooterId);
+
+    Map<String, Object> getAvailabilitySummary();
+
     ScooterIdsByStatusVo queryScooterIdsByStatus(String status);
 
     List<ScooterMapPointVo> listMapPoints();

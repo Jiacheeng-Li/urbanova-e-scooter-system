@@ -25,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -45,6 +46,43 @@ public class ScooterServiceImpl implements ScooterService {
 
     private final ScooterMapper scooterMapper;
     private final ScooterTypeMapper scooterTypeMapper;
+
+    @Override
+    public List<Map<String, Object>> listPublicScooters(String status, String typeCode, String zone) {
+        LambdaQueryWrapper<ScooterEntity> query = new LambdaQueryWrapper<ScooterEntity>()
+                .orderByAsc(ScooterEntity::getScooterId);
+        if (status != null && !status.isBlank()) {
+            query.eq(ScooterEntity::getStatus, normalizeScooterStatus(status));
+        }
+        if (typeCode != null && !typeCode.isBlank()) {
+            query.eq(ScooterEntity::getTypeCode, normalizeTypeCode(typeCode));
+        }
+        if (zone != null && !zone.isBlank()) {
+            query.eq(ScooterEntity::getZone, zone.trim());
+        }
+        Map<String, ScooterTypeEntity> typeMap = loadScooterTypeMap();
+        return scooterMapper.selectList(query).stream()
+                .map(entity -> toPublicScooterMap(entity, typeMap.get(entity.getTypeCode())))
+                .toList();
+    }
+
+    @Override
+    public Map<String, Object> getScooterDetail(String scooterId) {
+        ScooterEntity entity = findScooter(scooterId);
+        return toPublicScooterMap(entity, loadScooterTypeMap().get(entity.getTypeCode()));
+    }
+
+    @Override
+    public Map<String, Object> getAvailabilitySummary() {
+        Map<String, Object> data = new LinkedHashMap<>();
+        for (String status : ALLOWED_STATUSES) {
+            long count = scooterMapper.selectCount(new LambdaQueryWrapper<ScooterEntity>()
+                    .eq(ScooterEntity::getStatus, status));
+            data.put(status, count);
+        }
+        data.put("total", scooterMapper.selectCount(new LambdaQueryWrapper<>()));
+        return data;
+    }
 
     @Override
     public ScooterIdsByStatusVo queryScooterIdsByStatus(String status) {
@@ -312,5 +350,25 @@ public class ScooterServiceImpl implements ScooterService {
         vo.setCreatedAt(entity.getCreatedAt());
         vo.setUpdatedAt(entity.getUpdatedAt());
         return vo;
+    }
+
+    private Map<String, Object> toPublicScooterMap(ScooterEntity entity, ScooterTypeEntity typeEntity) {
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("scooterId", entity.getScooterId());
+        data.put("typeCode", entity.getTypeCode());
+        if (typeEntity != null) {
+            data.put("typeDisplayName", typeEntity.getDisplayName());
+            data.put("typeImageUrl", typeEntity.getImageUrl());
+            data.put("typeDescription", typeEntity.getDescription());
+        }
+        data.put("status", entity.getStatus());
+        data.put("batteryPercent", entity.getBatteryPercent());
+        data.put("lat", entity.getLat());
+        data.put("lng", entity.getLng());
+        data.put("zone", entity.getZone());
+        data.put("version", entity.getVersion());
+        data.put("createdAt", entity.getCreatedAt());
+        data.put("updatedAt", entity.getUpdatedAt());
+        return data;
     }
 }

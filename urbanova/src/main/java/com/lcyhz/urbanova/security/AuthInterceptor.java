@@ -66,13 +66,34 @@ public class AuthInterceptor implements HandlerInterceptor {
         if ("POST".equalsIgnoreCase(method) && "/api/v1/auth/login".equals(path)) {
             return true;
         }
+        if ("POST".equalsIgnoreCase(method) && "/api/v1/auth/refresh".equals(path)) {
+            return true;
+        }
+        if ("POST".equalsIgnoreCase(method) && "/api/v1/auth/password/forgot".equals(path)) {
+            return true;
+        }
+        if ("POST".equalsIgnoreCase(method) && "/api/v1/auth/password/reset".equals(path)) {
+            return true;
+        }
         if ("GET".equalsIgnoreCase(method) && "/api/v1/hire-options".equals(path)) {
+            return true;
+        }
+        if ("GET".equalsIgnoreCase(method) && "/api/v1/scooters".equals(path)) {
             return true;
         }
         if ("GET".equalsIgnoreCase(method) && "/api/v1/scooters/ids".equals(path)) {
             return true;
         }
+        if ("GET".equalsIgnoreCase(method) && "/api/v1/scooters/availability".equals(path)) {
+            return true;
+        }
         if ("GET".equalsIgnoreCase(method) && "/api/v1/scooters/map-points".equals(path)) {
+            return true;
+        }
+        if ("GET".equalsIgnoreCase(method) && path.startsWith("/api/v1/scooters/")) {
+            return true;
+        }
+        if ("POST".equalsIgnoreCase(method) && "/api/v1/pricing/quotes".equals(path)) {
             return true;
         }
         if ("GET".equalsIgnoreCase(method) && "/api/v1/scooter-types".equals(path)) {
@@ -81,7 +102,7 @@ public class AuthInterceptor implements HandlerInterceptor {
         if ("GET".equalsIgnoreCase(method) && path.startsWith("/api/v1/scooter-types/")) {
             return true;
         }
-        if ("POST".equalsIgnoreCase(method) && "/api/v1/pricing/quotes".equals(path)) {
+        if ("GET".equalsIgnoreCase(method) && "/api/v1/meta".equals(path)) {
             return true;
         }
         return "GET".equalsIgnoreCase(method) && "/api/v1/health".equals(path);

@@ -8,6 +8,7 @@ import java.time.LocalDateTime;
 public class CreateBookingVo {
     private String bookingId;
     private String status;
+    private String paymentStatus;
     private String scooterStatusSnapshot;
     private LocalDateTime startAt;
     private LocalDateTime endAt;

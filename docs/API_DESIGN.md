@@ -1,26 +1,43 @@
-# Urbanova API Design (Implemented v1)
+# Urbanova API Design
 
-Last updated: 2026-04-09
+Last updated: 2026-04-25
 
-## 1. Purpose and Scope
+## 1. Scope
 
-This document describes the **currently implemented** backend APIs in this repository.
+This document describes the backend APIs that are actually implemented in the current repository.
 
-Implemented backlog/new scope:
-- ID 1: User registration & login
-- ID 4: View hire options and cost
-- ID 5: Book an e-scooter
-- ID 12: Cancel booking
-- Booking query and booking modify APIs
-- ID 16: Manager hire option and scooter management APIs
-- ID 18: Scooter map location API
-- Scooter type catalog with static image URLs
+Covered backlog:
+- ID 1: user account and login
+- ID 2: saved card details
+- ID 3: account security and admin audit support
+- ID 4: hire options and price quote
+- ID 5: booking creation
+- ID 6: simulated card payment
+- ID 7: booking confirmation and notification resend
+- ID 8: booking confirmation storage and on-demand display
+- ID 9: staff bookings for unregistered users
+- ID 10: scooter availability updates
+- ID 11: booking extension
+- ID 12: booking cancellation
+- ID 13: issue / fault submission
+- ID 14: issue prioritization and resolution
+- ID 15: high-priority issue queue
+- ID 16: manager scooter / hire / type management
+- ID 17: scooter list and availability display
+- ID 18: scooter map points
+- ID 19: weekly revenue by hire option
+- ID 20: combined daily revenue in one week
+- ID 21: weekly revenue chart payload
+- ID 22: discounts for frequent / student / senior
+- ID 23: multi-client support through transactional reservation and optimistic scooter updates
 
-Not yet implemented from the previous full design draft (examples): refresh/logout/password reset, payments, confirmations, staff APIs, analytics, issue workflow, and discount rules.
+Notes:
+- ID 24 and ID 25 are frontend concerns. No dedicated backend endpoints are required for them.
+- Extra retained endpoints also exist: `/scooters/ids`, `/scooter-types/*`, `/admin/scooter-types/*`, `/bookings/{id}` patch update.
 
-## 2. Global API Conventions
+## 2. Global Conventions
 
-### 2.1 Base URL and Version
+### 2.1 Base URL
 
 - Base URL: `/api/v1`
 
@@ -31,14 +48,23 @@ Not yet implemented from the previous full design draft (examples): refresh/logo
 
 ### 2.3 Authentication
 
-- Protected endpoints require: `Authorization: Bearer <access_token>`
-- JWT access token only (no refresh token endpoint implemented yet)
-- Default token TTL: 15 minutes (`app.jwt.expiration-minutes`)
-- Manager endpoints require authenticated user role `MANAGER`
+- Protected endpoints use `Authorization: Bearer <access_token>`
+- Access token: JWT
+- Refresh token: opaque token stored in `auth_sessions`
+- Current default access token TTL: 15 minutes
+- Current default refresh token TTL: 14 days
 
-### 2.4 Standard Response Envelope
+### 2.4 Roles
 
-All endpoints return a unified envelope:
+| Role | Meaning |
+|---|---|
+| `CUSTOMER` | registered end user |
+| `STAFF` | staff operator |
+| `MANAGER` | manager / admin |
+
+### 2.5 Standard Envelope
+
+Success:
 
 ```json
 {
@@ -46,12 +72,12 @@ All endpoints return a unified envelope:
   "data": {},
   "meta": {
     "requestId": "uuid",
-    "timestamp": "2026-04-09T05:00:00Z"
+    "timestamp": "2026-04-25T07:00:00Z"
   }
 }
 ```
 
-Error envelope:
+Failure:
 
 ```json
 {
@@ -59,65 +85,152 @@ Error envelope:
   "error": {
     "code": "VALIDATION_ERROR",
     "message": "Request validation failed",
-    "details": {
-      "field": "error message"
-    }
+    "details": {}
   },
   "meta": {
     "requestId": "uuid",
-    "timestamp": "2026-04-09T05:00:00Z"
+    "timestamp": "2026-04-25T07:00:00Z"
   }
 }
 ```
 
-### 2.5 Date/Time and Currency
+### 2.6 Date and Currency
 
-- Date-time fields are serialized from backend `LocalDateTime`
-- Currency used in pricing responses: `GBP`
+- Datetime values are serialized from backend `LocalDateTime`
+- Currency used by pricing and analytics is `GBP`
 
-### 2.6 Static Images
+## 3. Implemented Endpoint Catalog
 
-- Scooter type images are served by Spring Boot static resources
-- Current URL pattern: `/images/scooter-types/{slug}.png`
-
-## 3. Endpoint Catalog (Implemented)
+### 3.1 Authentication and User Account
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
-| POST | `/auth/register` | Public | Register customer account and issue access token |
-| POST | `/auth/login` | Public | Login and issue access token |
-| GET | `/users/me` | Bearer token | Get current user profile |
-| GET | `/hire-options` | Public | List active hire options |
-| POST | `/pricing/quotes` | Public | Quote price by hire option code |
-| POST | `/bookings` | Bearer token | Create booking for current user |
-| GET | `/bookings` | Bearer token | Query current user's bookings |
-| GET | `/bookings/{bookingId}` | Bearer token | Query booking detail |
-| PATCH | `/bookings/{bookingId}` | Bearer token | Modify booking |
-| POST | `/bookings/{bookingId}/cancel` | Bearer token | Cancel booking |
-| GET | `/scooters/ids` | Public | Query scooter IDs by scooter status |
-| GET | `/scooters/map-points` | Public | Query tracked scooter map locations with scooter type info |
-| GET | `/scooter-types` | Public | List active scooter types |
-| GET | `/scooter-types/{typeCode}` | Public | Get scooter type detail |
-| GET | `/admin/scooter-types` | Bearer token (`MANAGER`) | Manager view of all scooter types |
-| POST | `/admin/scooter-types` | Bearer token (`MANAGER`) | Create scooter type |
-| PATCH | `/admin/scooter-types/{typeCode}` | Bearer token (`MANAGER`) | Update scooter type metadata |
-| DELETE | `/admin/scooter-types/{typeCode}` | Bearer token (`MANAGER`) | Disable scooter type |
-| GET | `/admin/hire-options` | Bearer token (`MANAGER`) | Manager view of all hire options |
-| POST | `/admin/hire-options` | Bearer token (`MANAGER`) | Create hire option |
-| PATCH | `/admin/hire-options/{hireOptionId}` | Bearer token (`MANAGER`) | Update hire option duration/price |
-| DELETE | `/admin/hire-options/{hireOptionId}` | Bearer token (`MANAGER`) | Disable hire option |
-| GET | `/admin/scooters` | Bearer token (`MANAGER`) | Manager inventory view |
-| POST | `/admin/scooters` | Bearer token (`MANAGER`) | Add scooter |
-| PATCH | `/admin/scooters/{scooterId}` | Bearer token (`MANAGER`) | Update scooter details |
-| PATCH | `/admin/scooters/{scooterId}/status` | Bearer token (`MANAGER`) | Override scooter status |
-| POST | `/admin/scooters/bulk-status` | Bearer token (`MANAGER`) | Bulk update scooter statuses |
+| POST | `/auth/register` | Public | Register customer and issue tokens |
+| POST | `/auth/login` | Public | Login and issue tokens |
+| POST | `/auth/refresh` | Public | Rotate refresh token and issue a new access token |
+| POST | `/auth/logout` | Bearer | Revoke current refresh session or all active sessions |
+| POST | `/auth/password/forgot` | Public | Create password reset token |
+| POST | `/auth/password/reset` | Public | Reset password with reset token |
+| GET | `/users/me` | Bearer | Current user profile |
+| PATCH | `/users/me` | Bearer | Update current user profile |
+| GET | `/users/me/usage-summary` | Bearer | Booking and spend summary for current user |
+| GET | `/admin/users` | MANAGER | List users |
+| GET | `/admin/users/{userId}` | MANAGER | User detail |
+| PATCH | `/admin/users/{userId}/status` | MANAGER | Update account status |
+| GET | `/admin/users/{userId}/bookings` | MANAGER | User booking history |
+| GET | `/admin/audit-logs` | MANAGER | Manager audit log view |
+
+### 3.2 Payment Methods
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| GET | `/payment-methods` | Bearer | List current user's saved cards |
+| POST | `/payment-methods` | Bearer | Save tokenized card metadata |
+| PATCH | `/payment-methods/{paymentMethodId}` | Bearer | Update expiry / label / default |
+| DELETE | `/payment-methods/{paymentMethodId}` | Bearer | Mark payment method as removed |
+| POST | `/payment-methods/{paymentMethodId}/default` | Bearer | Set default card |
+
+### 3.3 Pricing, Hire Options, Discounts
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| GET | `/hire-options` | Public | Active hire options |
+| POST | `/pricing/quotes` | Public, optional Bearer | Price quote with discount preview when token is provided |
+| GET | `/discounts/eligibility` | Bearer | Current user discount eligibility |
+| GET | `/admin/hire-options` | MANAGER | List all hire options |
+| POST | `/admin/hire-options` | MANAGER | Create hire option |
+| PATCH | `/admin/hire-options/{hireOptionId}` | MANAGER | Update hire option |
+| DELETE | `/admin/hire-options/{hireOptionId}` | MANAGER | Disable hire option |
+| GET | `/admin/discount-rules` | MANAGER | List discount rules |
+| POST | `/admin/discount-rules` | MANAGER | Create discount rule |
+| PATCH | `/admin/discount-rules/{discountRuleId}` | MANAGER | Update discount rule |
+
+### 3.4 Scooters and Map
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| GET | `/scooters` | Public | Scooter list with type, location and status |
+| GET | `/scooters/{scooterId}` | Public | Scooter detail |
+| GET | `/scooters/availability` | Public | Status counts summary |
+| GET | `/scooters/ids` | Public | Scooter IDs filtered by status |
+| GET | `/scooters/map-points` | Public | Map points for tracked scooters |
+| GET | `/scooter-types` | Public | Active scooter types |
+| GET | `/scooter-types/{typeCode}` | Public | Scooter type detail |
+| GET | `/admin/scooters` | MANAGER | Admin scooter inventory |
+| POST | `/admin/scooters` | MANAGER | Create scooter |
+| PATCH | `/admin/scooters/{scooterId}` | MANAGER | Update scooter |
+| PATCH | `/admin/scooters/{scooterId}/status` | MANAGER | Override scooter status |
+| POST | `/admin/scooters/bulk-status` | MANAGER | Bulk update scooter statuses |
+| GET | `/admin/scooter-types` | MANAGER | List scooter types |
+| POST | `/admin/scooter-types` | MANAGER | Create scooter type |
+| PATCH | `/admin/scooter-types/{typeCode}` | MANAGER | Update scooter type |
+| DELETE | `/admin/scooter-types/{typeCode}` | MANAGER | Disable scooter type |
+
+### 3.5 Bookings
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| POST | `/bookings` | CUSTOMER | Create booking |
+| GET | `/bookings` | CUSTOMER | List current user's bookings |
+| GET | `/bookings/{bookingId}` | CUSTOMER | Booking detail |
+| PATCH | `/bookings/{bookingId}` | CUSTOMER | Modify booking before settlement / start |
+| POST | `/bookings/{bookingId}/start` | CUSTOMER | Start confirmed booking |
+| POST | `/bookings/{bookingId}/end` | CUSTOMER | End active booking |
+| POST | `/bookings/{bookingId}/extend` | CUSTOMER | Extend booking |
+| POST | `/bookings/{bookingId}/cancel` | CUSTOMER | Cancel booking |
+| GET | `/bookings/{bookingId}/timeline` | CUSTOMER | Booking event timeline |
+| POST | `/staff/bookings/guest` | STAFF | Create guest booking |
+| GET | `/staff/bookings/guest/{bookingId}` | STAFF/MANAGER | Guest booking detail |
+| GET | `/admin/bookings` | MANAGER | Filtered booking list |
+| GET | `/admin/bookings/{bookingId}` | MANAGER | Booking detail with payments and timeline |
+| PATCH | `/admin/bookings/{bookingId}/override` | MANAGER | Manager override of booking fields |
+
+### 3.6 Payments, Confirmations, Notifications
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| POST | `/bookings/{bookingId}/payments` | CUSTOMER/STAFF/MANAGER | Create simulated payment |
+| GET | `/bookings/{bookingId}/payments` | CUSTOMER/STAFF/MANAGER | Payment list for booking |
+| GET | `/payments/{paymentId}` | CUSTOMER/STAFF/MANAGER | Payment detail |
+| POST | `/payments/{paymentId}/simulate-settlement` | MANAGER | Settle a deferred payment |
+| POST | `/payments/{paymentId}/refund` | MANAGER | Refund payment partially or fully |
+| GET | `/bookings/{bookingId}/confirmation` | Bearer | Latest booking confirmation |
+| POST | `/bookings/{bookingId}/confirmation/resend` | Bearer | Resend booking confirmation |
+| GET | `/confirmations` | Bearer | Current user's confirmations |
+| GET | `/notifications` | Bearer | Current user's notifications |
+| PATCH | `/notifications/{notificationId}/read` | Bearer | Mark notification as read |
+
+### 3.7 Issues
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| POST | `/issues` | Bearer | Create issue |
+| GET | `/issues` | Bearer | List current user's issues |
+| GET | `/issues/{issueId}` | Bearer | Issue detail |
+| POST | `/issues/{issueId}/comments` | Bearer | Add issue comment |
+| GET | `/admin/issues` | MANAGER | Admin issue queue |
+| PATCH | `/admin/issues/{issueId}/priority` | MANAGER | Update issue priority |
+| PATCH | `/admin/issues/{issueId}/status` | MANAGER | Update issue status |
+| POST | `/admin/issues/{issueId}/resolve` | MANAGER | Resolve issue |
+| GET | `/admin/issues/high-priority` | MANAGER | High / critical issue queue |
+
+### 3.8 Analytics and Ops
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| GET | `/admin/analytics/revenue/estimate` | MANAGER | Revenue estimate in date range |
+| GET | `/admin/analytics/revenue/weekly-by-hire-option` | MANAGER | Weekly totals grouped by hire option |
+| GET | `/admin/analytics/revenue/daily-combined` | MANAGER | Daily revenue over one week |
+| GET | `/admin/analytics/revenue/weekly-chart` | MANAGER | Chart-friendly revenue series |
+| GET | `/admin/analytics/usage/frequent-users` | MANAGER | Frequent user list |
 | GET | `/health` | Public | Health check |
+| GET | `/meta` | Public | API metadata |
 
-## 4. ID1: Auth and Account APIs
+## 4. Request Notes by Domain
 
-### 4.1 POST `/api/v1/auth/register`
+### 4.1 Auth
 
-Request:
+`POST /api/v1/auth/register`
 
 ```json
 {
@@ -128,15 +241,7 @@ Request:
 }
 ```
 
-Validation:
-- `email` required, valid email format
-- `password` required, length 8-72
-- `fullName` required, max 100 chars
-- `phone` optional, max 30 chars
-
-### 4.2 POST `/api/v1/auth/login`
-
-Request:
+`POST /api/v1/auth/login`
 
 ```json
 {
@@ -145,18 +250,16 @@ Request:
 }
 ```
 
-### 4.3 GET `/api/v1/users/me`
-
-Header:
-- `Authorization: Bearer <access_token>`
-
-### 4.4 Auth Response Payload (register/login)
+Successful auth response:
 
 ```json
 {
-  "accessToken": "jwt-token",
+  "sessionId": "SES-4D5D8E7A3B1C",
+  "accessToken": "jwt",
+  "refreshToken": "opaque-refresh-token",
   "tokenType": "Bearer",
   "expiresInSeconds": 900,
+  "refreshExpiresInSeconds": 1209600,
   "user": {
     "userId": "uuid",
     "email": "user@example.com",
@@ -165,32 +268,52 @@ Header:
     "role": "CUSTOMER",
     "discountCategory": "NONE",
     "accountStatus": "ACTIVE",
-    "createdAt": "2026-04-09T13:00:00"
+    "createdAt": "2026-04-25T13:00:00"
   }
 }
 ```
 
-## 5. Hire Option APIs
-
-### 5.1 GET `/api/v1/hire-options`
-
-Returns active options sorted by duration.
-
-Response `data` item:
+`POST /api/v1/auth/refresh`
 
 ```json
 {
-  "hireOptionId": "HIRE-H1",
-  "code": "H1",
-  "durationMinutes": 60,
-  "basePrice": 3.0,
-  "active": true
+  "refreshToken": "opaque-refresh-token"
 }
 ```
 
-### 5.2 POST `/api/v1/pricing/quotes`
+`POST /api/v1/auth/password/forgot`
 
-Request:
+Current implementation is coursework-oriented:
+- it creates a reset token in `password_reset_tokens`
+- it returns the token in the response body instead of sending a real email
+
+`POST /api/v1/auth/password/reset`
+
+```json
+{
+  "resetToken": "token-from-forgot-password",
+  "newPassword": "NewPassw0rd!"
+}
+```
+
+### 4.2 Payment Method
+
+`POST /api/v1/payment-methods`
+
+```json
+{
+  "brand": "VISA",
+  "cardNumber": "4111111111111111",
+  "expiryMonth": 12,
+  "expiryYear": 2030,
+  "label": "Personal card",
+  "isDefault": true
+}
+```
+
+### 4.3 Pricing and Discounts
+
+`POST /api/v1/pricing/quotes`
 
 ```json
 {
@@ -199,516 +322,203 @@ Request:
 }
 ```
 
-Validation:
-- `hireOptionCode` required
-- `scooterId` optional (currently not used in pricing calculation)
-
-Response `data`:
-
-```json
-{
-  "basePrice": 12.0,
-  "appliedDiscounts": [],
-  "finalPrice": 12.0,
-  "currency": "GBP"
-}
-```
-
-### 5.3 GET `/api/v1/admin/hire-options`
-
-Header:
-- `Authorization: Bearer <manager_access_token>`
-
 Behavior:
-- Returns all hire options, including inactive ones
+- without bearer token: base price only
+- with bearer token: applies currently eligible discount rules
 
-Response `data` item:
-
-```json
-{
-  "hireOptionId": "HIRE-H1",
-  "code": "H1",
-  "durationMinutes": 60,
-  "basePrice": 3.0,
-  "active": true,
-  "createdAt": "2026-04-09T13:00:00",
-  "updatedAt": "2026-04-09T13:00:00"
-}
-```
-
-### 5.4 POST `/api/v1/admin/hire-options`
-
-Header:
-- `Authorization: Bearer <manager_access_token>`
-
-Request:
+`POST /api/v1/admin/discount-rules`
 
 ```json
 {
-  "code": "H2",
-  "durationMinutes": 120,
-  "basePrice": 6.0
-}
-```
-
-Behavior:
-- `code` is normalized to uppercase
-- `hireOptionId` is generated as `HIRE-{CODE}`
-- duplicate `code` or generated `hireOptionId` is rejected
-
-### 5.5 PATCH `/api/v1/admin/hire-options/{hireOptionId}`
-
-Header:
-- `Authorization: Bearer <manager_access_token>`
-
-Request:
-
-```json
-{
-  "durationMinutes": 180,
-  "basePrice": 8.5
-}
-```
-
-Behavior:
-- At least one field required
-- Only `durationMinutes` and `basePrice` are mutable
-
-### 5.6 DELETE `/api/v1/admin/hire-options/{hireOptionId}`
-
-Header:
-- `Authorization: Bearer <manager_access_token>`
-
-Behavior:
-- Soft disable only
-- Returns the disabled hire option payload with `active=false`
-
-## 6. Booking APIs (Create / Query / Modify / Cancel)
-
-### 6.1 POST `/api/v1/bookings`
-
-Header:
-- `Authorization: Bearer <access_token>`
-
-Request:
-
-```json
-{
-  "scooterId": "SCO-0001",
-  "hireOptionId": "HIRE-H1",
-  "plannedStartAt": "2026-04-09T13:30:00"
-}
-```
-
-Validation and behavior:
-- `scooterId` required
-- `hireOptionId` required
-- `hireOptionId` accepts either `hire_option_id` (e.g. `HIRE-H1`) or code (e.g. `H1`)
-- Scooter must be in `AVAILABLE` status
-- Scooter reservation update is conditional (`AVAILABLE` -> `RESERVED`) to reduce race conflicts
-- Created booking status is `CONFIRMED`
-- Created booking payment status is `UNPAID`
-
-Response `data`:
-
-```json
-{
-  "bookingId": "BKG-1234abcd",
-  "status": "CONFIRMED",
-  "scooterStatusSnapshot": "RESERVED",
-  "startAt": "2026-04-09T13:30:00",
-  "endAt": "2026-04-09T14:30:00",
-  "priceBreakdown": {
-    "base": 3.0,
-    "discount": 0.0,
-    "finalPrice": 3.0
-  }
-}
-```
-
-### 6.2 GET `/api/v1/bookings`
-
-Header:
-- `Authorization: Bearer <access_token>`
-
-Query params:
-- `status` optional, values: `CONFIRMED` / `CANCELLED`
-
-### 6.3 GET `/api/v1/bookings/{bookingId}`
-
-Header:
-- `Authorization: Bearer <access_token>`
-
-Behavior:
-- Only booking owner can query detail
-
-### 6.4 PATCH `/api/v1/bookings/{bookingId}`
-
-Header:
-- `Authorization: Bearer <access_token>`
-
-Request (at least one field required):
-
-```json
-{
-  "scooterId": "SCO-0002",
-  "hireOptionId": "H4",
-  "plannedStartAt": "2026-04-09T15:00:00"
-}
-```
-
-### 6.5 POST `/api/v1/bookings/{bookingId}/cancel`
-
-Header:
-- `Authorization: Bearer <access_token>`
-
-Request body is optional. If provided:
-
-```json
-{
-  "reason": "change of plan"
-}
-```
-
-## 7. Scooter Type APIs
-
-### 7.1 GET `/api/v1/scooter-types`
-
-Behavior:
-- Public endpoint
-- Returns active scooter types only
-
-Response `data`:
-
-```json
-[
-  {
-    "typeCode": "ANDROMEDA",
-    "displayName": "ANDROMEDA",
-    "imageUrl": "/images/scooter-types/andromeda.png",
-    "description": "High-performance urban scooter.",
-    "active": true
-  }
-]
-```
-
-### 7.2 GET `/api/v1/scooter-types/{typeCode}`
-
-Behavior:
-- Public endpoint
-- `typeCode` is case-insensitive and normalized to uppercase
-
-Response `data`:
-
-```json
-{
-  "typeCode": "GALAXY_SEAT",
-  "displayName": "GALAXY Seat",
-  "imageUrl": "/images/scooter-types/galaxy-seat.png",
-  "description": "Comfort-focused seated scooter.",
+  "type": "FREQUENT_USER",
+  "thresholdHoursPerWeek": 8.0,
+  "percentage": 15.0,
   "active": true
 }
 ```
 
-### 7.3 GET `/api/v1/admin/scooter-types`
+### 4.4 Booking
 
-Header:
-- `Authorization: Bearer <manager_access_token>`
-
-Behavior:
-- Returns all scooter types, including inactive ones
-
-Response `data`:
-
-```json
-[
-  {
-    "typeCode": "ANDROMEDA",
-    "displayName": "ANDROMEDA",
-    "imageUrl": "/images/scooter-types/andromeda.png",
-    "description": "High-performance urban scooter.",
-    "active": true,
-    "createdAt": "2026-04-10T13:00:00",
-    "updatedAt": "2026-04-10T13:00:00"
-  }
-]
-```
-
-### 7.4 POST `/api/v1/admin/scooter-types`
-
-Header:
-- `Authorization: Bearer <manager_access_token>`
-
-Request:
-
-```json
-{
-  "typeCode": "SOLAR_X",
-  "displayName": "SOLAR X",
-  "imageUrl": "/images/scooter-types/solar-x.png",
-  "description": "Compact city scooter."
-}
-```
-
-Behavior:
-- `typeCode` is normalized to uppercase
-- duplicate `typeCode` is rejected
-- image file management is external to this endpoint; the API stores metadata only
-
-### 7.5 PATCH `/api/v1/admin/scooter-types/{typeCode}`
-
-Header:
-- `Authorization: Bearer <manager_access_token>`
-
-Request:
-
-```json
-{
-  "displayName": "GALAXY Seat Pro",
-  "imageUrl": "/images/scooter-types/galaxy-seat-pro.png",
-  "description": "Updated comfort-focused seated scooter."
-}
-```
-
-Behavior:
-- At least one field required
-- Mutable fields: `displayName`, `imageUrl`, `description`
-
-### 7.6 DELETE `/api/v1/admin/scooter-types/{typeCode}`
-
-Header:
-- `Authorization: Bearer <manager_access_token>`
-
-Behavior:
-- Soft disable only
-- Existing scooters retain their `typeCode`
-- Public `/scooter-types` no longer returns the disabled type
-
-## 8. Scooter Public APIs
-
-### 8.1 GET `/api/v1/scooters/ids`
-
-Query params:
-- `status` required, values:
-  - `AVAILABLE`
-  - `RESERVED`
-  - `IN_USE`
-  - `MAINTENANCE`
-  - `UNAVAILABLE`
-
-Response `data`:
-
-```json
-{
-  "status": "AVAILABLE",
-  "scooterIds": ["SCO-0001", "SCO-0002"]
-}
-```
-
-### 8.2 GET `/api/v1/scooters/map-points`
-
-Behavior:
-- Public endpoint
-- Returns scooters with non-null `lat` and `lng`
-- Ordered by `scooterId`
-
-Response `data`:
-
-```json
-[
-  {
-    "scooterId": "SCO-0001",
-    "typeCode": "ANDROMEDA",
-    "typeDisplayName": "ANDROMEDA",
-    "typeImageUrl": "/images/scooter-types/andromeda.png",
-    "status": "AVAILABLE",
-    "batteryPercent": 92,
-    "lat": 51.5074,
-    "lng": -0.1278,
-    "zone": "ZONE-A"
-  }
-]
-```
-
-## 9. Manager Scooter Management APIs
-
-### 9.1 GET `/api/v1/admin/scooters`
-
-Header:
-- `Authorization: Bearer <manager_access_token>`
-
-Query params:
-- `status` optional, values:
-  - `AVAILABLE`
-  - `RESERVED`
-  - `IN_USE`
-  - `MAINTENANCE`
-  - `UNAVAILABLE`
-
-Response `data` item:
+`POST /api/v1/bookings`
 
 ```json
 {
   "scooterId": "SCO-0001",
-  "typeCode": "ANDROMEDA",
-  "typeDisplayName": "ANDROMEDA",
-  "typeImageUrl": "/images/scooter-types/andromeda.png",
-  "status": "AVAILABLE",
-  "batteryPercent": 92,
-  "lat": 51.5074,
-  "lng": -0.1278,
-  "zone": "ZONE-A",
-  "version": 0,
-  "createdAt": "2026-04-09T13:00:00",
-  "updatedAt": "2026-04-09T13:00:00"
+  "hireOptionId": "HIRE-H4",
+  "plannedStartAt": "2026-04-25T14:00:00"
 }
 ```
 
-### 9.2 POST `/api/v1/admin/scooters`
+Current behavior:
+- booking is created as `PENDING_PAYMENT`
+- scooter is moved from `AVAILABLE` to `RESERVED`
+- booking price already includes eligible discounts
 
-Header:
-- `Authorization: Bearer <manager_access_token>`
+`PATCH /api/v1/bookings/{bookingId}`
 
-Request:
+Supported fields:
+- `scooterId`
+- `hireOptionId`
+- `plannedStartAt`
+
+Current behavior:
+- the booking is recalculated
+- payment state is reset to `UNPAID`
+- booking status is reset to `PENDING_PAYMENT`
+
+`POST /api/v1/bookings/{bookingId}/extend`
 
 ```json
 {
-  "scooterId": "SCO-0100",
-  "typeCode": "ANDROMEDA",
-  "status": "AVAILABLE",
-  "batteryPercent": 100,
-  "lat": 51.501,
-  "lng": -0.141,
-  "zone": "ZONE-D"
+  "additionalHireOptionCode": "H1"
 }
 ```
 
-Behavior:
-- `scooterId` is normalized to uppercase
-- `typeCode` must match an active scooter type
-- `status` defaults to `AVAILABLE` if omitted
-- `batteryPercent` defaults to `100` if omitted
-- `lat` and `lng` must be provided together
-
-### 9.3 PATCH `/api/v1/admin/scooters/{scooterId}`
-
-Header:
-- `Authorization: Bearer <manager_access_token>`
-
-Request:
+`POST /api/v1/staff/bookings/guest`
 
 ```json
 {
-  "typeCode": "ORION_ULTRA",
-  "batteryPercent": 84,
-  "lat": 51.502,
-  "lng": -0.142,
-  "zone": "ZONE-E"
+  "guestName": "Alex Guest",
+  "guestEmail": "guest@example.com",
+  "guestPhone": "10086",
+  "scooterId": "SCO-0002",
+  "hireOptionId": "HIRE-H1",
+  "plannedStartAt": "2026-04-25T16:00:00"
 }
 ```
 
-Behavior:
-- At least one field required
-- Mutable fields: `typeCode`, `batteryPercent`, `lat`, `lng`, `zone`
-- `typeCode`, if present, must match an active scooter type
-- `lat` and `lng` must remain a complete pair after update
-- Successful update increments scooter `version`
+`PATCH /api/v1/admin/bookings/{bookingId}/override`
 
-### 9.4 PATCH `/api/v1/admin/scooters/{scooterId}/status`
+Supported fields:
+- `status`
+- `paymentStatus`
+- `scooterId`
+- `cancelReason`
 
-Header:
-- `Authorization: Bearer <manager_access_token>`
+### 4.5 Payments
 
-Request:
+`POST /api/v1/bookings/{bookingId}/payments`
 
 ```json
 {
-  "status": "MAINTENANCE"
+  "method": "SAVED_CARD",
+  "paymentMethodId": "PM-1234567890",
+  "amount": 10.20,
+  "deferSettlement": false,
+  "simulatedOutcome": "SUCCESS"
 }
 ```
 
-Behavior:
-- Successful update increments scooter `version`
+Notes:
+- `method` supports `SAVED_CARD` and `ONE_TIME_CARD`
+- `deferSettlement=true` creates a payment in `INITIATED`
+- if settlement is not deferred, the current default path immediately simulates success/failure
+- a fully paid booking moves from `PENDING_PAYMENT` to `CONFIRMED`
+- confirmation and notification records are created when a booking becomes fully paid
 
-### 9.5 POST `/api/v1/admin/scooters/bulk-status`
-
-Header:
-- `Authorization: Bearer <manager_access_token>`
-
-Request:
+`POST /api/v1/payments/{paymentId}/refund`
 
 ```json
 {
-  "scooterIds": ["SCO-0001", "SCO-0002"],
-  "status": "MAINTENANCE"
+  "amount": 5.00
 }
 ```
 
-Behavior:
-- All scooter IDs must exist, otherwise request fails with `RESOURCE_NOT_FOUND`
-- Successful update increments each scooter `version`
+If `amount` is omitted, the implementation refunds the remaining refundable balance.
 
-Response `data`:
+### 4.6 Issues
+
+`POST /api/v1/issues`
 
 ```json
 {
-  "status": "MAINTENANCE",
-  "updatedCount": 2,
-  "scooterIds": ["SCO-0001", "SCO-0002"]
+  "bookingId": "BKG-12345678",
+  "scooterId": "SCO-0001",
+  "title": "Brake feels weak",
+  "description": "Braking distance increased during the ride",
+  "priority": "LOW"
 }
 ```
 
-## 10. State Transitions (Current Implementation)
+`POST /api/v1/issues/{issueId}/comments`
 
-### 10.1 Booking
+```json
+{
+  "message": "Additional detail or manager reply"
+}
+```
 
-| From | Endpoint | To |
-|---|---|---|
-| `CONFIRMED` | `PATCH /bookings/{bookingId}` | `CONFIRMED` |
-| `CONFIRMED` | `POST /bookings/{bookingId}/cancel` | `CANCELLED` |
+### 4.7 Analytics
 
-### 10.2 Scooter
+Supported query params:
+- `startDate=YYYY-MM-DD`
+- `endDate=YYYY-MM-DD`
 
-| From | Trigger | To |
-|---|---|---|
-| `AVAILABLE` | `POST /bookings` | `RESERVED` |
-| `RESERVED` | `PATCH /bookings/{bookingId}` with scooter changed | `AVAILABLE` |
-| `AVAILABLE` | `PATCH /bookings/{bookingId}` with scooter changed | `RESERVED` |
-| `RESERVED` | `POST /bookings/{bookingId}/cancel` | `AVAILABLE` |
-| any | `PATCH /admin/scooters/{scooterId}/status` | manager-selected status |
-| any | `POST /admin/scooters/bulk-status` | manager-selected status |
+Current implementation uses recorded `payments` rows as revenue source.
 
-## 11. Error Codes (Currently Used)
+## 5. State and Behavior Notes
 
-| Code | HTTP | Meaning |
-|---|---|---|
-| `VALIDATION_ERROR` | 400 | Request payload validation failed |
-| `AUTH_INVALID_CREDENTIALS` | 401 | Invalid login/token/user |
-| `AUTH_TOKEN_EXPIRED` | 401 | Access token expired |
-| `AUTH_FORBIDDEN` | 401/403 | Missing token or no permission |
-| `RESOURCE_NOT_FOUND` | 404 | User/scooter/hire option/booking/scooter type not found |
-| `SCOOTER_NOT_AVAILABLE` | 409 | Scooter is not available for booking/update |
-| `BOOKING_CONFLICT` | 409 | Booking state conflict during modify/cancel |
-| `INTERNAL_ERROR` | 500 | Unhandled server error |
+### 5.1 Booking
 
-## 12. Database (Current Implementation)
+Current implemented state flow:
+- `PENDING_PAYMENT` -> payment success -> `CONFIRMED`
+- `CONFIRMED` -> `/bookings/{id}/start` -> `ACTIVE`
+- `ACTIVE` -> `/bookings/{id}/end` -> `COMPLETED`
+- `PENDING_PAYMENT` or `CONFIRMED` -> `/bookings/{id}/cancel` -> `CANCELLED`
 
-Current tables used by the backend:
-- `users`
-- `hire_options`
-- `scooter_types`
-- `scooters`
-- `bookings`
+### 5.2 Scooter
 
-Current scooter type design:
-- `scooter_types.type_code` is the stable type identifier
-- `scooters.type_code` references `scooter_types.type_code`
-- images are stored as static files, while `scooter_types.image_url` stores the public path
-- manager scooter type APIs update metadata in `scooter_types`
+Current implemented transitions:
+- `AVAILABLE` -> booking created -> `RESERVED`
+- `RESERVED` -> booking start -> `IN_USE`
+- `IN_USE` -> booking end -> `AVAILABLE`
+- manager endpoints can directly set `AVAILABLE`, `RESERVED`, `IN_USE`, `MAINTENANCE`, `UNAVAILABLE`
 
-Current seeded scooter types:
-- `ANDROMEDA`
-- `GALAXY_SEAT`
-- `LUNAR_LITE`
-- `NEBULA_FAMILY`
-- `ORION_ULTRA`
+### 5.3 Issue
+
+Current implemented values:
+- priority: `LOW`, `HIGH`, `CRITICAL`
+- status: `OPEN`, `IN_REVIEW`, `RESOLVED`, `CLOSED`
+
+## 6. Security and Concurrency Notes
+
+Implemented security / reliability measures:
+- BCrypt password hashing
+- JWT access token + stored refresh session rotation
+- password reset tokens stored in database
+- manager audit logs in `audit_logs`
+- booking reservation uses conditional scooter status update
+- scooter admin updates increment `version`
+- payment, confirmation, notification, issue and booking event records are all persisted in MySQL
+
+This is how the current backend addresses ID 3 and ID 23.
+
+## 7. Backlog Coverage Matrix
+
+| ID | Coverage in Current Backend |
+|---|---|
+| 1 | `/auth/*`, `/users/me`, `/users/me/usage-summary` |
+| 2 | `/payment-methods/*` |
+| 3 | JWT + refresh sessions + password reset + admin status update + `/admin/audit-logs` |
+| 4 | `/hire-options`, `/pricing/quotes` |
+| 5 | `/bookings` |
+| 6 | `/bookings/{id}/payments`, `/payments/*` |
+| 7 | `/bookings/{id}/confirmation/resend`, `/notifications/*` |
+| 8 | `/bookings/{id}/confirmation`, `/confirmations`, `/bookings/{id}`, `/bookings/{id}/timeline` |
+| 9 | `/staff/bookings/guest*` |
+| 10 | booking lifecycle + `/admin/scooters/{id}/status` + `/admin/scooters/bulk-status` |
+| 11 | `/bookings/{id}/extend` |
+| 12 | `/bookings/{id}/cancel` |
+| 13 | `/issues*` |
+| 14 | `/admin/issues/*` |
+| 15 | `/admin/issues/high-priority` |
+| 16 | `/admin/hire-options/*`, `/admin/scooters/*`, `/admin/scooter-types/*` |
+| 17 | `/scooters`, `/scooters/{id}`, `/scooters/availability` |
+| 18 | `/scooters/map-points` |
+| 19 | `/admin/analytics/revenue/weekly-by-hire-option` |
+| 20 | `/admin/analytics/revenue/daily-combined` |
+| 21 | `/admin/analytics/revenue/weekly-chart` |
+| 22 | `/discounts/eligibility`, `/admin/discount-rules/*`, quote discount preview |
+| 23 | transactional reservation, scooter versioning, stored audit/event records |
+| 24 | frontend concern, no backend endpoint |
+| 25 | frontend concern, no backend endpoint |

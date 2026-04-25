@@ -4,6 +4,8 @@ import com.lcyhz.urbanova.common.exception.BusinessException;
 import com.lcyhz.urbanova.common.exception.ErrorCodes;
 import org.springframework.http.HttpStatus;
 
+import java.util.Set;
+
 public final class AuthContext {
     private static final ThreadLocal<AuthUser> CURRENT_USER = new ThreadLocal<>();
 
@@ -33,6 +35,13 @@ public final class AuthContext {
     public static void requireRole(String role) {
         AuthUser authUser = getRequiredUser();
         if (!role.equals(authUser.getRole())) {
+            throw new BusinessException(HttpStatus.FORBIDDEN.value(), ErrorCodes.AUTH_FORBIDDEN, "No permission for this operation");
+        }
+    }
+
+    public static void requireAnyRole(String... roles) {
+        AuthUser authUser = getRequiredUser();
+        if (!Set.of(roles).contains(authUser.getRole())) {
             throw new BusinessException(HttpStatus.FORBIDDEN.value(), ErrorCodes.AUTH_FORBIDDEN, "No permission for this operation");
         }
     }

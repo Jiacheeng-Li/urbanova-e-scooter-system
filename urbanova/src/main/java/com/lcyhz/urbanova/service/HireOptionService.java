@@ -12,7 +12,7 @@ import java.util.List;
 public interface HireOptionService {
     List<HireOptionVo> listActiveHireOptions();
 
-    PriceQuoteVo quotePrice(PriceQuoteRequest request);
+    PriceQuoteVo quotePrice(String userId, PriceQuoteRequest request);
 
     List<AdminHireOptionVo> listAllHireOptions();
 

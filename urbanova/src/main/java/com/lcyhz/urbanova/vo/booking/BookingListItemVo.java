@@ -9,6 +9,7 @@ import java.time.LocalDateTime;
 public class BookingListItemVo {
     private String bookingId;
     private String bookingRef;
+    private String customerType;
     private String scooterId;
     private String hireOptionId;
     private String status;
