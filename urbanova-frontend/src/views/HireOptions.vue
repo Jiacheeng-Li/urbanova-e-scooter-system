@@ -1,7 +1,7 @@
 <template>
   <div class="hire-options-container">
-    <h1 class="page-title">租赁选项</h1>
-    <p class="page-description">选择适合您的租赁时长和价格</p>
+    <h1 class="page-title">Hire Options</h1>
+    <p class="page-description">Choose the rental duration and price that suits you</p>
 
     <el-row :gutter="20" v-loading="loading">
       <el-col
@@ -24,7 +24,7 @@
 
           <div class="option-features">
             <el-button type="primary" size="small" class="select-button">
-              查看详情
+              View Details
             </el-button>
           </div>
         </el-card>
@@ -34,36 +34,36 @@
     <!-- 价格报价对话框 -->
     <el-dialog
       v-model="quoteDialogVisible"
-      :title="`${selectedOption?.code} - 价格详情`"
+      :title="`${selectedOption?.code} - Price Details`"
       width="400px"
     >
       <div v-if="selectedOption" class="quote-details">
         <el-descriptions :column="1" border>
-          <el-descriptions-item label="租赁类型">
+          <el-descriptions-item label="Rental Type">
             {{ selectedOption.code }}
           </el-descriptions-item>
-          <el-descriptions-item label="时长">
+          <el-descriptions-item label="Duration">
             {{ formatDuration(selectedOption.durationMinutes) }}
           </el-descriptions-item>
-          <el-descriptions-item label="基础价格">
+          <el-descriptions-item label="Base Price">
             £{{ selectedOption.basePrice.toFixed(2) }}
           </el-descriptions-item>
         </el-descriptions>
 
         <div v-if="quoteResult" class="quote-result">
-          <el-divider>价格报价</el-divider>
+          <el-divider>Price Quote</el-divider>
           <el-descriptions :column="1" border>
-            <el-descriptions-item label="基础价格">
+            <el-descriptions-item label="Base Price">
               £{{ quoteResult.basePrice.toFixed(2) }}
             </el-descriptions-item>
-            <el-descriptions-item label="折扣">
+            <el-descriptions-item label="Discount">
               -£{{ quoteResult.appliedDiscounts.length > 0 ?
                 quoteResult.appliedDiscounts.reduce((sum, d) => sum + d.amount, 0).toFixed(2) : '0.00' }}
             </el-descriptions-item>
-            <el-descriptions-item label="最终价格">
+            <el-descriptions-item label="Final Price">
               <strong>£{{ quoteResult.finalPrice.toFixed(2) }}</strong>
             </el-descriptions-item>
-            <el-descriptions-item label="货币">
+            <el-descriptions-item label="Currency">
               {{ quoteResult.currency }}
             </el-descriptions-item>
           </el-descriptions>
@@ -71,9 +71,9 @@
       </div>
 
       <template #footer>
-        <el-button @click="quoteDialogVisible = false">关闭</el-button>
+        <el-button @click="quoteDialogVisible = false">Close</el-button>
         <el-button type="primary" :loading="quoting" @click="getQuote">
-          获取报价
+          Get Quote
         </el-button>
       </template>
     </el-dialog>
@@ -94,15 +94,15 @@ const quoting = ref(false)
 
 const formatDuration = (minutes) => {
   if (minutes < 60) {
-    return `${minutes} 分钟`
+    return `${minutes} minutes`
   } else if (minutes === 60) {
-    return '1 小时'
+    return '1 hour'
   } else if (minutes < 1440) {
     const hours = Math.floor(minutes / 60)
-    return `${hours} 小时`
+    return `${hours} hours`
   } else {
     const days = Math.floor(minutes / 1440)
-    return `${days} 天`
+    return `${days} days`
   }
 }
 
@@ -112,7 +112,7 @@ const fetchHireOptions = async () => {
     const response = await hireOptionsApi.list()
     hireOptions.value = response.data.data
   } catch (error) {
-    ElMessage.error('获取租赁选项失败')
+    ElMessage.error('Failed to fetch hire options')
   } finally {
     loading.value = false
   }
@@ -133,9 +133,9 @@ const getQuote = async () => {
       hireOptionCode: selectedOption.value.code
     })
     quoteResult.value = response.data.data
-    ElMessage.success('报价获取成功')
+    ElMessage.success('Quote retrieved successfully')
   } catch (error) {
-    ElMessage.error('获取报价失败')
+    ElMessage.error('Failed to get quote')
   } finally {
     quoting.value = false
   }

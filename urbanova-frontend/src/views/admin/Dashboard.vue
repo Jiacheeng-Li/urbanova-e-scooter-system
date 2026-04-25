@@ -11,42 +11,57 @@
       active-text-color="#409eff"
     >
       <div class="nav-logo">
-        <h2>Urbanova 管理后台</h2>
+        <h2>Urbanova Admin</h2>
       </div>
-      
+
       <el-menu-item index="/admin/dashboard">
         <el-icon><Odometer /></el-icon>
-        仪表盘
+        Dashboard
       </el-menu-item>
-      
+
       <el-menu-item index="/admin/hire-options">
         <el-icon><Tickets /></el-icon>
-        管理租赁选项
+        Hire Options
       </el-menu-item>
-      
+
       <el-menu-item index="/admin/scooters">
         <el-icon><Bicycle /></el-icon>
-        管理滑板车
+        Scooters
       </el-menu-item>
-      
+
+      <el-menu-item index="/admin/bookings">
+        <el-icon><List /></el-icon>
+        Bookings
+      </el-menu-item>
+
+      <el-menu-item index="/admin/issues">
+        <el-icon><ChatLineRound /></el-icon>
+        Issues
+      </el-menu-item>
+
+      <el-menu-item index="/admin/users">
+        <el-icon><User /></el-icon>
+        Users
+      </el-menu-item>
+
       <div class="nav-actions">
-        <el-button 
-          type="primary" 
-          link 
+        <el-button
+          type="primary"
+          link
           @click="goBackToHome"
           class="back-home-btn"
         >
           <el-icon><House /></el-icon>
-          返回主页
+          Back to Home
         </el-button>
-        <el-button 
-          type="danger" 
-          link 
+        <el-button
+          type="danger"
+          link
           @click="handleLogout"
           class="logout-btn"
         >
           <el-icon><SwitchButton /></el-icon>
-          退出登录
+          Logout
         </el-button>
       </div>
     </el-menu>
@@ -62,10 +77,13 @@
 import { computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
-import { 
-  Odometer, 
-  Tickets, 
-  Bicycle, 
+import {
+  Odometer,
+  Tickets,
+  Bicycle,
+  List,
+  ChatLineRound,
+  User,
   House,
   SwitchButton
 } from '@element-plus/icons-vue'
@@ -85,7 +103,7 @@ const handleLogout = () => {
   authStore.logout()
   router.push('/login')
   localStorage.removeItem('myBookings')
-  ElMessage.success('已退出登录')
+  ElMessage.success('Logged out successfully')
 }
 </script>
 

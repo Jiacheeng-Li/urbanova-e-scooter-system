@@ -1,7 +1,7 @@
 <template>
   <div class="booking-container">
-    <h1 class="page-title">预订滑板车</h1>
-    <p class="page-description">选择滑板车和租赁选项来完成预订</p>
+    <h1 class="page-title">Book a Scooter</h1>
+    <p class="page-description">Select a scooter and hire option to complete your booking</p>
 
     <el-card class="booking-form-card">
       <el-form
@@ -11,10 +11,10 @@
         label-position="top"
         v-loading="loading"
       >
-        <el-form-item label="滑板车ID" prop="scooterId">
+        <el-form-item label="Scooter ID" prop="scooterId">
           <el-select
             v-model="formData.scooterId"
-            placeholder="请选择滑板车"
+            placeholder="Select a scooter"
             style="width: 100%"
           >
             <el-option
@@ -26,10 +26,10 @@
           </el-select>
         </el-form-item>
 
-        <el-form-item label="租赁选项" prop="hireOptionId">
+        <el-form-item label="Hire Option" prop="hireOptionId">
           <el-select
             v-model="formData.hireOptionId"
-            placeholder="请选择租赁选项"
+            placeholder="Select a hire option"
             style="width: 100%"
           >
             <el-option
@@ -41,11 +41,11 @@
           </el-select>
         </el-form-item>
 
-        <el-form-item label="计划开始时间" prop="plannedStartAt">
+        <el-form-item label="Planned Start Time" prop="plannedStartAt">
           <el-date-picker
             v-model="formData.plannedStartAt"
             type="datetime"
-            placeholder="选择开始时间"
+            placeholder="Select start time"
             style="width: 100%"
             :disabled-date="disabledDate"
           />
@@ -59,7 +59,7 @@
             class="submit-button"
             @click="handleSubmit"
           >
-            确认预订
+            Confirm Booking
           </el-button>
         </el-form-item>
       </el-form>
@@ -68,7 +68,7 @@
     <!-- 预订成功对话框 -->
     <el-dialog
       v-model="successDialogVisible"
-      title="预订成功"
+      title="Booking Successful"
       width="450px"
       :close-on-click-modal="false"
       :show-close="false"
@@ -76,32 +76,32 @@
       <div class="success-content">
         <el-result
           icon="success"
-          title="预订成功"
-          sub-title="您的滑板车预订已成功创建"
+          title="Booking Successful"
+          sub-title="Your scooter booking has been created successfully"
         >
           <template #extra>
             <el-descriptions :column="1" border>
-              <el-descriptions-item label="预订ID">
+              <el-descriptions-item label="Booking ID">
                 {{ bookingResult.bookingId }}
               </el-descriptions-item>
-              <el-descriptions-item label="状态">
+              <el-descriptions-item label="Status">
                 <el-tag :type="getStatusType(bookingResult.status)">
                   {{ bookingResult.status }}
                 </el-tag>
               </el-descriptions-item>
-              <el-descriptions-item label="开始时间">
+              <el-descriptions-item label="Start Time">
                 {{ formatDateTime(bookingResult.startAt) }}
               </el-descriptions-item>
-              <el-descriptions-item label="结束时间">
+              <el-descriptions-item label="End Time">
                 {{ formatDateTime(bookingResult.endAt) }}
               </el-descriptions-item>
-              <el-descriptions-item label="基础价格">
+              <el-descriptions-item label="Base Price">
                 £{{ bookingResult.priceBreakdown.base }}
               </el-descriptions-item>
-              <el-descriptions-item label="折扣">
+              <el-descriptions-item label="Discount">
                 £{{ bookingResult.priceBreakdown.discount }}
               </el-descriptions-item>
-              <el-descriptions-item label="最终价格">
+              <el-descriptions-item label="Final Price">
                 <strong>£{{ bookingResult.priceBreakdown.finalPrice }}</strong>
               </el-descriptions-item>
             </el-descriptions>
@@ -111,10 +111,10 @@
 
       <template #footer>
         <el-button type="primary" @click="goToMyBookings">
-          查看我的预订
+          View My Bookings
         </el-button>
         <el-button @click="resetFormAndContinue">
-          继续预订
+          Continue Booking
         </el-button>
       </template>
     </el-dialog>
@@ -145,33 +145,33 @@ const formData = reactive({
 
 const formRules = {
   scooterId: [
-    { required: true, message: '请选择滑板车', trigger: 'change' }
+    { required: true, message: 'Please select a scooter', trigger: 'change' }
   ],
   hireOptionId: [
-    { required: true, message: '请选择租赁选项', trigger: 'change' }
+    { required: true, message: 'Please select a hire option', trigger: 'change' }
   ],
   plannedStartAt: [
-    { required: true, message: '请选择计划开始时间', trigger: 'change' }
+    { required: true, message: 'Please select planned start time', trigger: 'change' }
   ]
 }
 
 const formatDuration = (minutes) => {
   if (minutes < 60) {
-    return `${minutes} 分钟`
+    return `${minutes} minutes`
   } else if (minutes === 60) {
-    return '1 小时'
+    return '1 hour'
   } else if (minutes < 1440) {
     const hours = Math.floor(minutes / 60)
-    return `${hours} 小时`
+    return `${hours} hours`
   } else {
     const days = Math.floor(minutes / 1440)
-    return `${days} 天`
+    return `${days} days`
   }
 }
 
 const formatDateTime = (dateStr) => {
   if (!dateStr) return '-'
-  return new Date(dateStr).toLocaleString('zh-CN')
+  return new Date(dateStr).toLocaleString()
 }
 
 const disabledDate = (time) => {
@@ -193,7 +193,7 @@ const fetchHireOptions = async () => {
     const response = await hireOptionsApi.list()
     hireOptions.value = response.data.data
   } catch (error) {
-    ElMessage.error('获取租赁选项失败')
+    ElMessage.error('Failed to fetch hire options')
   } finally {
     loading.value = false
   }
@@ -208,7 +208,7 @@ const fetchAvailableScooters = async () => {
       status: 'AVAILABLE'
     }))
   } catch (error) {
-    ElMessage.error('获取可用滑板车失败')
+    ElMessage.error('Failed to fetch available scooters')
   }
 }
 
@@ -234,9 +234,9 @@ const handleSubmit = async () => {
         localStorage.setItem('myBookings', JSON.stringify(storedBookings))
 
         successDialogVisible.value = true
-        ElMessage.success('预订成功！')
+        ElMessage.success('Booking successful!')
       } catch (error) {
-        const errorMsg = error.response?.data?.error?.message || '预订失败，请稍后重试'
+        const errorMsg = error.response?.data?.error?.message || 'Booking failed, please try again'
         ElMessage.error(errorMsg)
       } finally {
         submitting.value = false

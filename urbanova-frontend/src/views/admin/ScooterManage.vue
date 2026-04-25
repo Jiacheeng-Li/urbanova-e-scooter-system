@@ -1,44 +1,44 @@
 <template>
   <div class="scooter-manage-container">
     <div class="page-header">
-      <h1 class="page-title">滑板车管理</h1>
+      <h1 class="page-title">Scooter Management</h1>
       <el-button type="primary" @click="openCreateDialog">
         <el-icon><Plus /></el-icon>
-        添加滑板车
+        Add Scooter
       </el-button>
     </div>
 
     <!-- 筛选栏 -->
     <el-card class="filter-card">
       <el-form :inline="true" :model="filterForm">
-        <el-form-item label="状态筛选">
-          <el-select 
-            v-model="filterForm.status" 
-            placeholder="全部状态" 
+        <el-form-item label="Filter by Status">
+          <el-select
+            v-model="filterForm.status"
+            placeholder="All Status"
             clearable
             @change="fetchScooters"
             style="width: 150px"
           >
-            <el-option label="全部" value="" />
-            <el-option label="可用" value="AVAILABLE" />
-            <el-option label="已预订" value="RESERVED" />
-            <el-option label="使用中" value="IN_USE" />
-            <el-option label="维护中" value="MAINTENANCE" />
-            <el-option label="不可用" value="UNAVAILABLE" />
+            <el-option label="All" value="" />
+            <el-option label="Available" value="AVAILABLE" />
+            <el-option label="Reserved" value="RESERVED" />
+            <el-option label="In Use" value="IN_USE" />
+            <el-option label="Maintenance" value="MAINTENANCE" />
+            <el-option label="Unavailable" value="UNAVAILABLE" />
           </el-select>
         </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="fetchScooters">
             <el-icon><Search /></el-icon>
-            查询
+            Search
           </el-button>
           <el-button @click="resetFilter">
             <el-icon><Refresh /></el-icon>
-            重置
+            Reset
           </el-button>
           <el-button type="warning" @click="openBulkStatusDialog">
             <el-icon><Operation /></el-icon>
-            批量更新状态
+            Bulk Update Status
           </el-button>
         </el-form-item>
       </el-form>
@@ -46,21 +46,21 @@
 
     <!-- 滑板车列表 -->
     <el-card class="table-card">
-      <el-table 
-        :data="scooters" 
+      <el-table
+        :data="scooters"
         v-loading="loading"
         stripe
         border
       >
-        <el-table-column prop="scooterId" label="滑板车ID" width="140" />
-        <el-table-column prop="typeCode" label="型号" width="120" />
-        <el-table-column prop="color" label="颜色" width="100">
+        <el-table-column prop="scooterId" label="Scooter ID" width="140" />
+        <el-table-column prop="typeCode" label="Model" width="120" />
+        <el-table-column prop="color" label="Color" width="100">
           <template #default="{ row }">
             <div style="display: flex; align-items: center; gap: 8px;">
-              <div 
-                :style="{ 
-                  width: '20px', 
-                  height: '20px', 
+              <div
+                :style="{
+                  width: '20px',
+                  height: '20px',
                   backgroundColor: row.color || '#ddd',
                   borderRadius: '4px',
                   border: '1px solid #e4e7ed'
@@ -70,17 +70,17 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="120">
+        <el-table-column prop="status" label="Status" width="120">
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.status)">
               {{ getStatusLabel(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="batteryPercent" label="电量" width="100">
+        <el-table-column prop="batteryPercent" label="Battery" width="100">
           <template #default="{ row }">
-            <el-progress 
-              :percentage="row.batteryPercent" 
+            <el-progress
+              :percentage="row.batteryPercent"
               :color="getBatteryColor(row.batteryPercent)"
               :stroke-width="8"
               :show-text="false"
@@ -89,35 +89,35 @@
             <span style="margin-left: 8px">{{ row.batteryPercent }}%</span>
           </template>
         </el-table-column>
-        <el-table-column prop="zone" label="区域" width="120" />
-        <el-table-column prop="lat" label="纬度" width="120" />
-        <el-table-column prop="lng" label="经度" width="120" />
-        <el-table-column prop="version" label="版本" width="80" />
-        <el-table-column prop="createdAt" label="创建时间" width="180">
+        <el-table-column prop="zone" label="Zone" width="120" />
+        <el-table-column prop="lat" label="Latitude" width="120" />
+        <el-table-column prop="lng" label="Longitude" width="120" />
+        <el-table-column prop="version" label="Version" width="80" />
+        <el-table-column prop="createdAt" label="Created At" width="180">
           <template #default="{ row }">
             {{ formatDateTime(row.createdAt) }}
           </template>
         </el-table-column>
-        <el-table-column prop="updatedAt" label="更新时间" width="180">
+        <el-table-column prop="updatedAt" label="Updated At" width="180">
           <template #default="{ row }">
             {{ formatDateTime(row.updatedAt) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column label="Actions" width="200" fixed="right">
           <template #default="{ row }">
-            <el-button 
-              type="primary" 
-              link 
+            <el-button
+              type="primary"
+              link
               @click="openEditDialog(row)"
             >
-              编辑
+              Edit
             </el-button>
-            <el-button 
-              type="warning" 
-              link 
+            <el-button
+              type="warning"
+              link
               @click="openStatusDialog(row)"
             >
-              修改状态
+              Change Status
             </el-button>
           </template>
         </el-table-column>
@@ -127,7 +127,7 @@
     <!-- 新增/编辑对话框 -->
     <el-dialog
       v-model="dialogVisible"
-      :title="dialogMode === 'create' ? '添加滑板车' : '编辑滑板车信息'"
+      :title="dialogMode === 'create' ? 'Add Scooter' : 'Edit Scooter'"
       width="600px"
       @close="resetForm"
     >
@@ -137,111 +137,111 @@
         :rules="formRules"
         label-width="100px"
       >
-        <el-form-item label="滑板车ID" prop="scooterId" v-if="dialogMode === 'create'">
-          <el-input 
-            v-model="formData.scooterId" 
-            placeholder="例如: SCO-0100"
+        <el-form-item label="Scooter ID" prop="scooterId" v-if="dialogMode === 'create'">
+          <el-input
+            v-model="formData.scooterId"
+            placeholder="e.g., SCO-0100"
             :disabled="submitting"
           />
-          <div class="form-tip">ID将自动转换为大写</div>
+          <div class="form-tip">ID will be converted to uppercase</div>
         </el-form-item>
 
-        <el-form-item label="型号" prop="typeCode">
-          <el-input 
-            v-model="formData.typeCode" 
-            placeholder="例如: X9-PRO, E-SCOOTER"
+        <el-form-item label="Model" prop="typeCode">
+          <el-input
+            v-model="formData.typeCode"
+            placeholder="e.g., X9-PRO, E-SCOOTER"
             :disabled="submitting"
           />
-          <div class="form-tip">滑板车型号代码</div>
+          <div class="form-tip">Scooter model code</div>
         </el-form-item>
 
-        <el-form-item label="颜色" prop="color">
+        <el-form-item label="Color" prop="color">
           <div style="display: flex; gap: 12px; align-items: center;">
-            <el-input 
-              v-model="formData.color" 
-              placeholder="例如: 红色, #FF0000, 黑色"
+            <el-input
+              v-model="formData.color"
+              placeholder="e.g., Red, #FF0000, Black"
               style="flex: 1"
               :disabled="submitting"
             />
-            <el-color-picker 
-              v-model="formData.color" 
+            <el-color-picker
+              v-model="formData.color"
               show-alpha
               :predefine="predefineColors"
               :disabled="submitting"
             />
           </div>
-          <div class="form-tip">支持颜色名称、十六进制或RGB值</div>
+          <div class="form-tip">Supports color name, hex, or RGB value</div>
         </el-form-item>
 
-        <el-form-item label="状态" prop="status">
-          <el-select 
-            v-model="formData.status" 
-            placeholder="请选择状态"
+        <el-form-item label="Status" prop="status">
+          <el-select
+            v-model="formData.status"
+            placeholder="Select status"
             style="width: 100%"
             :disabled="submitting"
           >
-            <el-option label="可用" value="AVAILABLE" />
-            <el-option label="已预订" value="RESERVED" />
-            <el-option label="使用中" value="IN_USE" />
-            <el-option label="维护中" value="MAINTENANCE" />
-            <el-option label="不可用" value="UNAVAILABLE" />
+            <el-option label="Available" value="AVAILABLE" />
+            <el-option label="Reserved" value="RESERVED" />
+            <el-option label="In Use" value="IN_USE" />
+            <el-option label="Maintenance" value="MAINTENANCE" />
+            <el-option label="Unavailable" value="UNAVAILABLE" />
           </el-select>
         </el-form-item>
 
-        <el-form-item label="电量(%)" prop="batteryPercent">
-          <el-slider 
-            v-model="formData.batteryPercent" 
-            :min="0" 
+        <el-form-item label="Battery (%)" prop="batteryPercent">
+          <el-slider
+            v-model="formData.batteryPercent"
+            :min="0"
             :max="100"
             :disabled="submitting"
           />
         </el-form-item>
 
-        <el-form-item label="所在区域" prop="zone">
-          <el-input 
-            v-model="formData.zone" 
-            placeholder="例如: ZONE-A"
+        <el-form-item label="Zone" prop="zone">
+          <el-input
+            v-model="formData.zone"
+            placeholder="e.g., ZONE-A"
             :disabled="submitting"
           />
         </el-form-item>
 
-        <el-form-item label="纬度" prop="lat">
-          <el-input-number 
-            v-model="formData.lat" 
+        <el-form-item label="Latitude" prop="lat">
+          <el-input-number
+            v-model="formData.lat"
             :step="0.001"
             :precision="6"
             style="width: 100%"
-            placeholder="例如: 51.5074"
+            placeholder="e.g., 51.5074"
             :disabled="submitting"
           />
         </el-form-item>
 
-        <el-form-item label="经度" prop="lng">
-          <el-input-number 
-            v-model="formData.lng" 
+        <el-form-item label="Longitude" prop="lng">
+          <el-input-number
+            v-model="formData.lng"
             :step="0.001"
             :precision="6"
             style="width: 100%"
-            placeholder="例如: -0.1278"
+            placeholder="e.g., -0.1278"
             :disabled="submitting"
           />
         </el-form-item>
 
         <!-- 编辑模式下显示版本号（只读） -->
-        <el-form-item label="版本号" v-if="dialogMode === 'edit'">
-          <el-input 
-            :value="formData.version" 
+        <el-form-item label="Version" v-if="dialogMode === 'edit'">
+          <el-input
+            :value="formData.version"
             disabled
-            placeholder="版本号自动递增"
+            placeholder="Auto-incremented"
           />
-          <div class="form-tip">版本号在每次更新时由系统自动递增</div>
+          <div class="form-tip">Version increments automatically on each update</div>
         </el-form-item>
       </el-form>
 
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
+        <el-button @click="dialogVisible = false">Cancel</el-button>
         <el-button type="primary" :loading="submitting" @click="handleSubmit">
-          {{ dialogMode === 'create' ? '添加' : '保存' }}
+          {{ dialogMode === 'create' ? 'Add' : 'Save' }}
         </el-button>
       </template>
     </el-dialog>
@@ -249,22 +249,22 @@
     <!-- 修改状态对话框 -->
     <el-dialog
       v-model="statusDialogVisible"
-      title="修改滑板车状态"
+      title="Change Scooter Status"
       width="450px"
     >
       <el-form :model="statusForm" label-width="100px">
-        <el-form-item label="滑板车ID">
+        <el-form-item label="Scooter ID">
           <span>{{ selectedScooter?.scooterId }}</span>
         </el-form-item>
-        <el-form-item label="型号">
+        <el-form-item label="Model">
           <span>{{ selectedScooter?.typeCode }}</span>
         </el-form-item>
-        <el-form-item label="颜色">
+        <el-form-item label="Color">
           <div style="display: flex; align-items: center; gap: 8px;">
-            <div 
-              :style="{ 
-                width: '20px', 
-                height: '20px', 
+            <div
+              :style="{
+                width: '20px',
+                height: '20px',
                 backgroundColor: selectedScooter?.color || '#ddd',
                 borderRadius: '4px',
                 border: '1px solid #e4e7ed'
@@ -273,33 +273,33 @@
             <span>{{ selectedScooter?.color || '-' }}</span>
           </div>
         </el-form-item>
-        <el-form-item label="当前状态">
+        <el-form-item label="Current Status">
           <el-tag :type="getStatusType(selectedScooter?.status)">
             {{ getStatusLabel(selectedScooter?.status) }}
           </el-tag>
         </el-form-item>
-        <el-form-item label="当前版本">
+        <el-form-item label="Current Version">
           <span>{{ selectedScooter?.version }}</span>
         </el-form-item>
-        <el-form-item label="新状态">
-          <el-select 
-            v-model="statusForm.status" 
-            placeholder="请选择新状态"
+        <el-form-item label="New Status">
+          <el-select
+            v-model="statusForm.status"
+            placeholder="Select new status"
             style="width: 100%"
           >
-            <el-option label="可用" value="AVAILABLE" />
-            <el-option label="已预订" value="RESERVED" />
-            <el-option label="使用中" value="IN_USE" />
-            <el-option label="维护中" value="MAINTENANCE" />
-            <el-option label="不可用" value="UNAVAILABLE" />
+            <el-option label="Available" value="AVAILABLE" />
+            <el-option label="Reserved" value="RESERVED" />
+            <el-option label="In Use" value="IN_USE" />
+            <el-option label="Maintenance" value="MAINTENANCE" />
+            <el-option label="Unavailable" value="UNAVAILABLE" />
           </el-select>
         </el-form-item>
       </el-form>
 
       <template #footer>
-        <el-button @click="statusDialogVisible = false">取消</el-button>
+        <el-button @click="statusDialogVisible = false">Cancel</el-button>
         <el-button type="primary" :loading="updatingStatus" @click="confirmStatusUpdate">
-          确认修改
+          Confirm Change
         </el-button>
       </template>
     </el-dialog>
@@ -307,15 +307,15 @@
     <!-- 批量更新状态对话框 -->
     <el-dialog
       v-model="bulkStatusDialogVisible"
-      title="批量更新状态"
+      title="Bulk Update Status"
       width="500px"
     >
       <el-form :model="bulkStatusForm" label-width="100px">
-        <el-form-item label="选择滑板车">
-          <el-select 
-            v-model="bulkStatusForm.scooterIds" 
+        <el-form-item label="Select Scooters">
+          <el-select
+            v-model="bulkStatusForm.scooterIds"
             multiple
-            placeholder="请选择滑板车"
+            placeholder="Select scooters"
             style="width: 100%"
           >
             <el-option
@@ -326,25 +326,25 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="目标状态">
-          <el-select 
-            v-model="bulkStatusForm.status" 
-            placeholder="请选择状态"
+        <el-form-item label="Target Status">
+          <el-select
+            v-model="bulkStatusForm.status"
+            placeholder="Select status"
             style="width: 100%"
           >
-            <el-option label="可用" value="AVAILABLE" />
-            <el-option label="已预订" value="RESERVED" />
-            <el-option label="使用中" value="IN_USE" />
-            <el-option label="维护中" value="MAINTENANCE" />
-            <el-option label="不可用" value="UNAVAILABLE" />
+            <el-option label="Available" value="AVAILABLE" />
+            <el-option label="Reserved" value="RESERVED" />
+            <el-option label="In Use" value="IN_USE" />
+            <el-option label="Maintenance" value="MAINTENANCE" />
+            <el-option label="Unavailable" value="UNAVAILABLE" />
           </el-select>
         </el-form-item>
       </el-form>
 
       <template #footer>
-        <el-button @click="bulkStatusDialogVisible = false">取消</el-button>
+        <el-button @click="bulkStatusDialogVisible = false">Cancel</el-button>
         <el-button type="primary" :loading="updatingBulkStatus" @click="confirmBulkStatusUpdate">
-          批量更新
+          Bulk Update
         </el-button>
       </template>
     </el-dialog>
@@ -403,23 +403,23 @@ const bulkStatusForm = ref({
 
 const formRules = {
   scooterId: [
-    { required: true, message: '请输入滑板车ID', trigger: 'blur' },
-    { pattern: /^[A-Za-z0-9\-]+$/, message: '滑板车ID只能包含字母、数字和连字符', trigger: 'blur' },
-    { min: 1, max: 50, message: '长度在1-50个字符之间', trigger: 'blur' }
+    { required: true, message: 'Please enter scooter ID', trigger: 'blur' },
+    { pattern: /^[A-Za-z0-9\-]+$/, message: 'Scooter ID can only contain letters, numbers and hyphens', trigger: 'blur' },
+    { min: 1, max: 50, message: 'Length must be between 1 and 50 characters', trigger: 'blur' }
   ],
   typeCode: [
-    { required: true, message: '请输入型号', trigger: 'blur' },
-    { min: 1, max: 50, message: '长度在1-50个字符之间', trigger: 'blur' }
+    { required: true, message: 'Please enter model', trigger: 'blur' },
+    { min: 1, max: 50, message: 'Length must be between 1 and 50 characters', trigger: 'blur' }
   ],
   color: [
-    { max: 50, message: '颜色描述不能超过50个字符', trigger: 'blur' }
+    { max: 50, message: 'Color description cannot exceed 50 characters', trigger: 'blur' }
   ],
   status: [
-    { required: true, message: '请选择状态', trigger: 'change' }
+    { required: true, message: 'Please select status', trigger: 'change' }
   ],
   batteryPercent: [
-    { required: true, message: '请输入电量', trigger: 'blur' },
-    { type: 'number', min: 0, max: 100, message: '电量应在0-100之间', trigger: 'blur' }
+    { required: true, message: 'Please enter battery level', trigger: 'blur' },
+    { type: 'number', min: 0, max: 100, message: 'Battery level must be between 0 and 100', trigger: 'blur' }
   ]
 }
 
@@ -436,11 +436,11 @@ const getStatusType = (status) => {
 
 const getStatusLabel = (status) => {
   const statusMap = {
-    'AVAILABLE': '可用',
-    'RESERVED': '已预订',
-    'IN_USE': '使用中',
-    'MAINTENANCE': '维护中',
-    'UNAVAILABLE': '不可用'
+    'AVAILABLE': 'Available',
+    'RESERVED': 'Reserved',
+    'IN_USE': 'In Use',
+    'MAINTENANCE': 'Maintenance',
+    'UNAVAILABLE': 'Unavailable'
   }
   return statusMap[status] || status
 }
@@ -453,7 +453,7 @@ const getBatteryColor = (percent) => {
 
 const formatDateTime = (dateStr) => {
   if (!dateStr) return '-'
-  return new Date(dateStr).toLocaleString('zh-CN')
+  return new Date(dateStr).toLocaleString()
 }
 
 const fetchScooters = async () => {
@@ -463,7 +463,7 @@ const fetchScooters = async () => {
     const response = await adminScootersApi.list(params)
     scooters.value = response.data.data
   } catch (error) {
-    ElMessage.error('获取滑板车列表失败')
+    ElMessage.error('Failed to fetch scooters')
     console.error(error)
   } finally {
     loading.value = false
@@ -546,7 +546,7 @@ const handleSubmit = async () => {
           lng: formData.value.lng
         }
         const response = await adminScootersApi.create(requestData)
-        ElMessage.success('添加成功')
+        ElMessage.success('Added successfully')
         scooters.value.unshift(response.data.data)
       } else {
         const requestData = {
@@ -561,7 +561,7 @@ const handleSubmit = async () => {
           selectedScooter.value.scooterId,
           requestData
         )
-        ElMessage.success('更新成功')
+        ElMessage.success('Updated successfully')
         const index = scooters.value.findIndex(
           item => item.scooterId === selectedScooter.value.scooterId
         )
@@ -572,7 +572,7 @@ const handleSubmit = async () => {
       dialogVisible.value = false
       await fetchScooters() // 刷新列表
     } catch (error) {
-      const errorMsg = error.response?.data?.error?.message || '操作失败'
+      const errorMsg = error.response?.data?.error?.message || 'Operation failed'
       ElMessage.error(errorMsg)
     } finally {
       submitting.value = false
@@ -589,8 +589,8 @@ const confirmStatusUpdate = async () => {
       selectedScooter.value.scooterId,
       { status: statusForm.value.status }
     )
-    ElMessage.success('状态更新成功')
-    
+    ElMessage.success('Status updated successfully')
+
     const index = scooters.value.findIndex(
       item => item.scooterId === selectedScooter.value.scooterId
     )
@@ -599,7 +599,7 @@ const confirmStatusUpdate = async () => {
     }
     statusDialogVisible.value = false
   } catch (error) {
-    const errorMsg = error.response?.data?.error?.message || '状态更新失败'
+    const errorMsg = error.response?.data?.error?.message || 'Status update failed'
     ElMessage.error(errorMsg)
   } finally {
     updatingStatus.value = false
@@ -608,11 +608,11 @@ const confirmStatusUpdate = async () => {
 
 const confirmBulkStatusUpdate = async () => {
   if (bulkStatusForm.value.scooterIds.length === 0) {
-    ElMessage.warning('请至少选择一个滑板车')
+    ElMessage.warning('Please select at least one scooter')
     return
   }
   if (!bulkStatusForm.value.status) {
-    ElMessage.warning('请选择目标状态')
+    ElMessage.warning('Please select target status')
     return
   }
 
@@ -622,13 +622,13 @@ const confirmBulkStatusUpdate = async () => {
       scooterIds: bulkStatusForm.value.scooterIds,
       status: bulkStatusForm.value.status
     })
-    ElMessage.success(`成功更新 ${response.data.data.updatedCount} 辆滑板车的状态`)
-    
+    ElMessage.success(`Successfully updated status for ${response.data.data.updatedCount} scooters`)
+
     await fetchScooters()
     bulkStatusDialogVisible.value = false
     bulkStatusForm.value = { scooterIds: [], status: '' }
   } catch (error) {
-    const errorMsg = error.response?.data?.error?.message || '批量更新失败'
+    const errorMsg = error.response?.data?.error?.message || 'Bulk update failed'
     ElMessage.error(errorMsg)
   } finally {
     updatingBulkStatus.value = false
