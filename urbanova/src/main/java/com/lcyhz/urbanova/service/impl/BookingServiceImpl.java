@@ -20,6 +20,7 @@ import com.lcyhz.urbanova.mapper.PaymentMapper;
 import com.lcyhz.urbanova.mapper.ScooterMapper;
 import com.lcyhz.urbanova.service.BookingService;
 import com.lcyhz.urbanova.service.DiscountRuleService;
+import com.lcyhz.urbanova.service.ScooterService;
 import com.lcyhz.urbanova.service.support.PlatformSupportService;
 import com.lcyhz.urbanova.vo.booking.BookingDetailVo;
 import com.lcyhz.urbanova.vo.booking.BookingListItemVo;
@@ -27,11 +28,13 @@ import com.lcyhz.urbanova.vo.booking.CancelBookingVo;
 import com.lcyhz.urbanova.vo.booking.CreateBookingVo;
 import com.lcyhz.urbanova.vo.booking.PriceBreakdownVo;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -54,7 +57,14 @@ public class BookingServiceImpl implements BookingService {
     private final PaymentMapper paymentMapper;
     private final BookingConfirmationMapper bookingConfirmationMapper;
     private final DiscountRuleService discountRuleService;
+    private final ScooterService scooterService;
     private final PlatformSupportService platformSupportService;
+
+    @Value("${app.scooter.low-battery-threshold:20}")
+    private int lowBatteryThreshold;
+
+    @Value("${app.scooter.battery-drain-per-minute:1}")
+    private int batteryDrainPerMinute;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -209,11 +219,13 @@ public class BookingServiceImpl implements BookingService {
         if (!DomainConstants.BookingStatus.ACTIVE.equals(booking.getStatus())) {
             throw new BusinessException(HttpStatus.CONFLICT.value(), ErrorCodes.BOOKING_CONFLICT, "Booking cannot be ended in current state");
         }
+        scooterService.processScooterLifecycle();
+        refreshScooterBatteryIfNeeded(booking.getScooterId());
         booking.setStatus(DomainConstants.BookingStatus.COMPLETED);
         booking.setActualEndAt(LocalDateTime.now());
         booking.setUpdatedAt(LocalDateTime.now());
         bookingMapper.updateById(booking);
-        setScooterStatus(booking.getScooterId(), DomainConstants.ScooterStatus.AVAILABLE);
+        setScooterStatus(booking.getScooterId(), resolveReadyScooterStatus(booking.getScooterId()));
         platformSupportService.recordBookingEvent(booking.getBookingId(), "BOOKING_COMPLETED", userId, role, "Ride ended");
         return toBookingMap(booking);
     }
@@ -349,7 +361,9 @@ public class BookingServiceImpl implements BookingService {
                 }
             }
             if (DomainConstants.BookingStatus.COMPLETED.equals(status)) {
-                setScooterStatus(booking.getScooterId(), DomainConstants.ScooterStatus.AVAILABLE);
+                scooterService.processScooterLifecycle();
+                refreshScooterBatteryIfNeeded(booking.getScooterId());
+                setScooterStatus(booking.getScooterId(), resolveReadyScooterStatus(booking.getScooterId()));
                 if (booking.getActualEndAt() == null) {
                     booking.setActualEndAt(LocalDateTime.now());
                 }
@@ -516,22 +530,65 @@ public class BookingServiceImpl implements BookingService {
     }
 
     private void releaseScooter(String scooterId) {
+        String readyStatus = resolveReadyScooterStatus(scooterId);
         UpdateWrapper<ScooterEntity> releaseUpdate = new UpdateWrapper<>();
         releaseUpdate.eq("scooter_id", normalizeScooterId(scooterId))
                 .in("status", DomainConstants.ScooterStatus.RESERVED, DomainConstants.ScooterStatus.IN_USE)
-                .set("status", DomainConstants.ScooterStatus.AVAILABLE)
+                .set("status", readyStatus)
+                .set("charge_started_at", null)
                 .set("updated_at", LocalDateTime.now())
                 .setSql("version = version + 1");
         scooterMapper.update(null, releaseUpdate);
     }
 
     private void setScooterStatus(String scooterId, String status) {
+        LocalDateTime now = LocalDateTime.now();
         UpdateWrapper<ScooterEntity> updateWrapper = new UpdateWrapper<>();
         updateWrapper.eq("scooter_id", normalizeScooterId(scooterId))
                 .set("status", status)
-                .set("updated_at", LocalDateTime.now())
+                .set("updated_at", now)
+                .set("charge_started_at", DomainConstants.ScooterStatus.CHARGING.equals(status) ? now : null)
                 .setSql("version = version + 1");
+        if (DomainConstants.ScooterStatus.IN_USE.equals(status) || DomainConstants.ScooterStatus.CHARGING.equals(status)) {
+            updateWrapper.set("battery_updated_at", now);
+        }
         scooterMapper.update(null, updateWrapper);
+    }
+
+    private String resolveReadyScooterStatus(String scooterId) {
+        ScooterEntity scooter = scooterMapper.selectOne(new LambdaQueryWrapper<ScooterEntity>()
+                .eq(ScooterEntity::getScooterId, normalizeScooterId(scooterId)));
+        if (scooter == null) {
+            return DomainConstants.ScooterStatus.AVAILABLE;
+        }
+        Integer batteryPercent = scooter.getBatteryPercent();
+        return batteryPercent != null && batteryPercent < lowBatteryThreshold
+                ? DomainConstants.ScooterStatus.LOW_BATTERY
+                : DomainConstants.ScooterStatus.AVAILABLE;
+    }
+
+    private void refreshScooterBatteryIfNeeded(String scooterId) {
+        ScooterEntity scooter = scooterMapper.selectOne(new LambdaQueryWrapper<ScooterEntity>()
+                .eq(ScooterEntity::getScooterId, normalizeScooterId(scooterId)));
+        if (scooter == null || !DomainConstants.ScooterStatus.IN_USE.equals(scooter.getStatus())) {
+            return;
+        }
+        LocalDateTime lastTick = scooter.getBatteryUpdatedAt();
+        if (lastTick == null) {
+            scooter.setBatteryUpdatedAt(LocalDateTime.now());
+            scooterMapper.updateById(scooter);
+            return;
+        }
+        long elapsedMinutes = Duration.between(lastTick, LocalDateTime.now()).toMinutes();
+        if (elapsedMinutes <= 0) {
+            return;
+        }
+        int currentBattery = scooter.getBatteryPercent() == null ? 100 : scooter.getBatteryPercent();
+        int newBattery = Math.max(0, currentBattery - Math.toIntExact(elapsedMinutes * Math.max(1, batteryDrainPerMinute)));
+        scooter.setBatteryPercent(newBattery);
+        scooter.setBatteryUpdatedAt(lastTick.plusMinutes(elapsedMinutes));
+        scooter.setUpdatedAt(LocalDateTime.now());
+        scooterMapper.updateById(scooter);
     }
 
     private String normalizeScooterId(String scooterId) {

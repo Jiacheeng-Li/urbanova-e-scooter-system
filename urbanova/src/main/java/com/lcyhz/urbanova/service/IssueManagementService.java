@@ -1,13 +1,16 @@
 package com.lcyhz.urbanova.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.lcyhz.urbanova.common.exception.BusinessException;
 import com.lcyhz.urbanova.common.exception.ErrorCodes;
 import com.lcyhz.urbanova.domain.DomainConstants;
 import com.lcyhz.urbanova.entity.IssueCommentEntity;
 import com.lcyhz.urbanova.entity.IssueEntity;
+import com.lcyhz.urbanova.entity.ScooterEntity;
 import com.lcyhz.urbanova.mapper.IssueCommentMapper;
 import com.lcyhz.urbanova.mapper.IssueMapper;
+import com.lcyhz.urbanova.mapper.ScooterMapper;
 import com.lcyhz.urbanova.service.support.PlatformSupportService;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -25,13 +28,16 @@ import java.util.UUID;
 public class IssueManagementService {
     private final IssueMapper issueMapper;
     private final IssueCommentMapper issueCommentMapper;
+    private final ScooterMapper scooterMapper;
     private final PlatformSupportService platformSupportService;
 
     public IssueManagementService(IssueMapper issueMapper,
                                   IssueCommentMapper issueCommentMapper,
+                                  ScooterMapper scooterMapper,
                                   PlatformSupportService platformSupportService) {
         this.issueMapper = issueMapper;
         this.issueCommentMapper = issueCommentMapper;
+        this.scooterMapper = scooterMapper;
         this.platformSupportService = platformSupportService;
     }
 
@@ -123,6 +129,9 @@ public class IssueManagementService {
         issue.setStatus(normalizeStatus(status));
         issue.setUpdatedAt(LocalDateTime.now());
         issueMapper.updateById(issue);
+        if (Set.of(DomainConstants.IssueStatus.RESOLVED, DomainConstants.IssueStatus.CLOSED).contains(issue.getStatus())) {
+            restoreScooterAvailability(issue.getScooterId());
+        }
         platformSupportService.recordAudit("ISSUE_STATUS_UPDATED", "ISSUE", issueId, "status=" + issue.getStatus());
         platformSupportService.createNotification(issue.getReporterUserId(), DomainConstants.NotificationType.ISSUE_UPDATED,
                 "Issue status updated", "Status changed for issue " + issue.getIssueId(), issue.getBookingId());
@@ -136,10 +145,37 @@ public class IssueManagementService {
         issue.setManagerFeedback(trimToNull(feedback));
         issue.setUpdatedAt(LocalDateTime.now());
         issueMapper.updateById(issue);
+        restoreScooterAvailability(issue.getScooterId());
         platformSupportService.recordAudit("ISSUE_RESOLVED", "ISSUE", issueId, feedback);
         platformSupportService.createNotification(issue.getReporterUserId(), DomainConstants.NotificationType.ISSUE_UPDATED,
                 "Issue resolved", "Issue " + issue.getIssueId() + " was resolved", issue.getBookingId());
         return toIssueMap(issue, loadComments(issueId));
+    }
+
+    private void restoreScooterAvailability(String scooterId) {
+        if (!hasText(scooterId)) {
+            return;
+        }
+        ScooterEntity scooter = scooterMapper.selectOne(new LambdaQueryWrapper<ScooterEntity>()
+                .eq(ScooterEntity::getScooterId, scooterId.trim().toUpperCase(Locale.ROOT)));
+        if (scooter == null) {
+            return;
+        }
+        if (!Set.of(
+                DomainConstants.ScooterStatus.FAULT,
+                DomainConstants.ScooterStatus.UNDER_REPAIR,
+                DomainConstants.ScooterStatus.MAINTENANCE,
+                DomainConstants.ScooterStatus.UNAVAILABLE
+        ).contains(scooter.getStatus())) {
+            return;
+        }
+        UpdateWrapper<ScooterEntity> updateWrapper = new UpdateWrapper<>();
+        updateWrapper.eq("scooter_id", scooter.getScooterId())
+                .set("status", DomainConstants.ScooterStatus.AVAILABLE)
+                .set("charge_started_at", null)
+                .set("updated_at", LocalDateTime.now())
+                .setSql("version = version + 1");
+        scooterMapper.update(null, updateWrapper);
     }
 
     public List<Map<String, Object>> listHighPriorityIssues() {

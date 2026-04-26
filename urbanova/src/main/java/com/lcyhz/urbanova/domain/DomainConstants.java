@@ -48,6 +48,10 @@ public final class DomainConstants {
         public static final String IN_USE = "IN_USE";
         public static final String MAINTENANCE = "MAINTENANCE";
         public static final String UNAVAILABLE = "UNAVAILABLE";
+        public static final String FAULT = "FAULT";
+        public static final String UNDER_REPAIR = "UNDER_REPAIR";
+        public static final String LOW_BATTERY = "LOW_BATTERY";
+        public static final String CHARGING = "CHARGING";
     }
 
     public static final class BookingStatus {
@@ -88,6 +92,8 @@ public final class DomainConstants {
         public static final String BOOKING_CANCELLED = "BOOKING_CANCELLED";
         public static final String PAYMENT_UPDATED = "PAYMENT_UPDATED";
         public static final String ISSUE_UPDATED = "ISSUE_UPDATED";
+        public static final String SCOOTER_LOW_BATTERY = "SCOOTER_LOW_BATTERY";
+        public static final String SCOOTER_CHARGED = "SCOOTER_CHARGED";
     }
 
     public static final class ConfirmationStatus {

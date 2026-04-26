@@ -89,8 +89,13 @@ CREATE TABLE IF NOT EXISTS scooters (
     id BIGINT NOT NULL AUTO_INCREMENT,
     scooter_id VARCHAR(32) NOT NULL,
     type_code VARCHAR(40) NOT NULL,
+    color VARCHAR(40) NULL,
     status VARCHAR(20) NOT NULL,
     battery_percent INT NOT NULL DEFAULT 100,
+    qr_code_id VARCHAR(32) NOT NULL,
+    battery_updated_at DATETIME NULL,
+    charge_started_at DATETIME NULL,
+    low_battery_alerted_at DATETIME NULL,
     lat DECIMAL(10,6) NULL,
     lng DECIMAL(10,6) NULL,
     zone VARCHAR(80) NULL,
@@ -99,8 +104,21 @@ CREATE TABLE IF NOT EXISTS scooters (
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     UNIQUE KEY uk_scooters_scooter_id (scooter_id),
+    UNIQUE KEY uk_scooters_qr_code_id (qr_code_id),
+    KEY idx_scooters_status (status),
     KEY idx_scooters_type_code (type_code),
     CONSTRAINT fk_scooters_type_code FOREIGN KEY (type_code) REFERENCES scooter_types (type_code)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS user_locations (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    user_id VARCHAR(36) NOT NULL,
+    lat DECIMAL(10,6) NOT NULL,
+    lng DECIMAL(10,6) NOT NULL,
+    source VARCHAR(30) NOT NULL,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_user_locations_user_id (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS payment_methods (

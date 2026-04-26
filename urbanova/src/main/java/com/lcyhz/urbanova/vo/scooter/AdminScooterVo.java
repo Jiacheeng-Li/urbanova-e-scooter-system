@@ -8,6 +8,7 @@ import java.time.LocalDateTime;
 @Data
 public class AdminScooterVo {
     private String scooterId;
+    private String qrCodeId;
     private String typeCode;
     private String typeDisplayName;
     private String typeImageUrl;

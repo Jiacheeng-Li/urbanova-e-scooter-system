@@ -22,6 +22,10 @@ public class ScooterEntity {
     private String zone;
     private Integer version;
     private String color;
+    private String qrCodeId;
+    private LocalDateTime batteryUpdatedAt;
+    private LocalDateTime chargeStartedAt;
+    private LocalDateTime lowBatteryAlertedAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

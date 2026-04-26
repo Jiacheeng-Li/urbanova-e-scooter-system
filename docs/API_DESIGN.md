@@ -1,6 +1,6 @@
 # Urbanova API Design
 
-Last updated: 2026-04-25
+Last updated: 2026-04-26
 
 ## 1. Scope
 
@@ -33,7 +33,7 @@ Covered backlog:
 
 Notes:
 - ID 24 and ID 25 are frontend concerns. No dedicated backend endpoints are required for them.
-- Extra retained endpoints also exist: `/scooters/ids`, `/scooter-types/*`, `/admin/scooter-types/*`, `/bookings/{id}` patch update.
+- Extra retained endpoints also exist: `/scooters/ids`, `/scooters/*/qr`, `/scooters/qr/*`, `/scooter-types/*`, `/admin/scooter-types/*`, `/bookings/{id}` patch update.
 
 ## 2. Global Conventions
 
@@ -114,6 +114,8 @@ Failure:
 | GET | `/users/me` | Bearer | Current user profile |
 | PATCH | `/users/me` | Bearer | Update current user profile |
 | GET | `/users/me/usage-summary` | Bearer | Booking and spend summary for current user |
+| POST | `/users/me/location` | Bearer | Store current user's client-reported map location |
+| GET | `/users/me/map-view` | Bearer | Scooter map points plus latest stored user location |
 | GET | `/admin/users` | MANAGER | List users |
 | GET | `/admin/users/{userId}` | MANAGER | User detail |
 | PATCH | `/admin/users/{userId}/status` | MANAGER | Update account status |
@@ -151,6 +153,9 @@ Failure:
 |---|---|---|---|
 | GET | `/scooters` | Public | Scooter list with type, location and status |
 | GET | `/scooters/{scooterId}` | Public | Scooter detail |
+| GET | `/scooters/{scooterId}/qr` | Public | QR metadata for one scooter |
+| GET | `/scooters/qr/{qrCodeId}` | Public | Resolve scooter from QR code id |
+| GET | `/scooters/qr/{qrCodeId}/image` | Public | Render PNG QR code image |
 | GET | `/scooters/availability` | Public | Status counts summary |
 | GET | `/scooters/ids` | Public | Scooter IDs filtered by status |
 | GET | `/scooters/map-points` | Public | Map points for tracked scooters |
@@ -160,6 +165,7 @@ Failure:
 | POST | `/admin/scooters` | MANAGER | Create scooter |
 | PATCH | `/admin/scooters/{scooterId}` | MANAGER | Update scooter |
 | PATCH | `/admin/scooters/{scooterId}/status` | MANAGER | Override scooter status |
+| POST | `/admin/scooters/{scooterId}/charge` | MANAGER | Start 3-minute charge workflow to 100% |
 | POST | `/admin/scooters/bulk-status` | MANAGER | Bulk update scooter statuses |
 | GET | `/admin/scooter-types` | MANAGER | List scooter types |
 | POST | `/admin/scooter-types` | MANAGER | Create scooter type |
@@ -337,7 +343,40 @@ Behavior:
 }
 ```
 
-### 4.4 Booking
+### 4.4 Scooter and Map
+
+`POST /api/v1/users/me/location`
+
+```json
+{
+  "lat": 51.507351,
+  "lng": -0.127758,
+  "source": "CLIENT_GPS"
+}
+```
+
+Notes:
+- backend cannot directly read device GPS, so the mobile or web client reports the current location
+- `GET /api/v1/users/me/map-view` returns:
+  - `scooters`: same structure as `/scooters/map-points`
+  - `userLocation`: latest stored location for the current user, or `null`
+
+`GET /api/v1/scooters/{scooterId}/qr`
+
+Response fields:
+- `scooterId`
+- `qrCodeId`
+- `payload`
+- `imagePath`
+- `resolvePath`
+
+Charging behavior:
+- manager calls `POST /api/v1/admin/scooters/{scooterId}/charge`
+- scooter status becomes `CHARGING`
+- after 3 minutes the scheduler sets battery to `100` and status to `AVAILABLE`
+- there is no countdown response; completion is asynchronous
+
+### 4.5 Booking
 
 `POST /api/v1/bookings`
 
@@ -395,7 +434,7 @@ Supported fields:
 - `scooterId`
 - `cancelReason`
 
-### 4.5 Payments
+### 4.6 Payments
 
 `POST /api/v1/bookings/{bookingId}/payments`
 
@@ -426,7 +465,7 @@ Notes:
 
 If `amount` is omitted, the implementation refunds the remaining refundable balance.
 
-### 4.6 Issues
+### 4.7 Issues
 
 `POST /api/v1/issues`
 
@@ -448,7 +487,12 @@ If `amount` is omitted, the implementation refunds the remaining refundable bala
 }
 ```
 
-### 4.7 Analytics
+Issue resolution behavior:
+- `POST /api/v1/admin/issues/{issueId}/resolve` sets the issue to `RESOLVED`
+- `PATCH /api/v1/admin/issues/{issueId}/status` with `RESOLVED` or `CLOSED` also counts as operationally resolved
+- if the issue is linked to a scooter currently in `FAULT`, `UNDER_REPAIR`, `MAINTENANCE`, or `UNAVAILABLE`, the scooter is automatically restored to `AVAILABLE`
+
+### 4.8 Analytics
 
 Supported query params:
 - `startDate=YYYY-MM-DD`
@@ -471,8 +515,12 @@ Current implemented state flow:
 Current implemented transitions:
 - `AVAILABLE` -> booking created -> `RESERVED`
 - `RESERVED` -> booking start -> `IN_USE`
-- `IN_USE` -> booking end -> `AVAILABLE`
-- manager endpoints can directly set `AVAILABLE`, `RESERVED`, `IN_USE`, `MAINTENANCE`, `UNAVAILABLE`
+- `IN_USE` -> booking end -> `AVAILABLE` or `LOW_BATTERY`
+- manager charge action -> `CHARGING` -> scheduler completes -> `AVAILABLE`
+- while scooter is `IN_USE`, battery drains at the configured lifecycle rate (current default: `1%` per minute)
+- when battery drops below `20%`, the backend creates manager notifications with type `SCOOTER_LOW_BATTERY`
+- each scooter has a stable `qrCodeId`, and the backend can resolve or render a QR code from it
+- manager endpoints can directly set `AVAILABLE`, `RESERVED`, `IN_USE`, `MAINTENANCE`, `UNAVAILABLE`, `FAULT`, `UNDER_REPAIR`, `LOW_BATTERY`, `CHARGING`
 
 ### 5.3 Issue
 

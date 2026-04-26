@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/admin/scooters")
@@ -69,6 +70,15 @@ public class AdminScooterController {
         AuthContext.requireRole(DomainConstants.ROLE_MANAGER);
         BulkScooterStatusUpdateVo result = scooterService.bulkUpdateScooterStatus(request);
         platformSupportService.recordAudit("SCOOTER_BULK_STATUS_UPDATED", "SCOOTER", String.join(",", result.getScooterIds()), result.getStatus());
+        return ApiResponse.success(result);
+    }
+
+    @PostMapping("/{scooterId}/charge")
+    public ApiResponse<Map<String, Object>> startCharging(@PathVariable String scooterId) {
+        AuthContext.requireRole(DomainConstants.ROLE_MANAGER);
+        Map<String, Object> result = scooterService.startCharging(scooterId);
+        platformSupportService.recordAudit("SCOOTER_CHARGING_STARTED", "SCOOTER", scooterId,
+                "Manager started a 3-minute full-charge workflow");
         return ApiResponse.success(result);
     }
 }
