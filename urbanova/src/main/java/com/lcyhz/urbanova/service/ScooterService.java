@@ -17,7 +17,15 @@ public interface ScooterService {
 
     Map<String, Object> getScooterDetail(String scooterId);
 
+    Map<String, Object> getMapView(String userId);
+
     Map<String, Object> getAvailabilitySummary();
+
+    Map<String, Object> getScooterQrMetadata(String scooterId);
+
+    Map<String, Object> getScooterByQrCodeId(String qrCodeId);
+
+    byte[] renderScooterQrCode(String qrCodeId);
 
     ScooterIdsByStatusVo queryScooterIdsByStatus(String status);
 
@@ -32,4 +40,8 @@ public interface ScooterService {
     AdminScooterVo updateScooterStatus(String scooterId, UpdateScooterStatusRequest request);
 
     BulkScooterStatusUpdateVo bulkUpdateScooterStatus(BulkUpdateScooterStatusRequest request);
+
+    Map<String, Object> startCharging(String scooterId);
+
+    void processScooterLifecycle();
 }

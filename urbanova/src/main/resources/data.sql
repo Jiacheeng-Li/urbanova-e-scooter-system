@@ -32,17 +32,20 @@ ON DUPLICATE KEY UPDATE
     description = VALUES(description),
     active = VALUES(active);
 
-INSERT INTO scooters (scooter_id, type_code, status, battery_percent, lat, lng, zone)
+INSERT INTO scooters (scooter_id, type_code, color, status, battery_percent, qr_code_id, battery_updated_at, lat, lng, zone)
 VALUES
-    ('SCO-0001', 'ANDROMEDA', 'AVAILABLE', 92, 51.507400, -0.127800, 'ZONE-A'),
-    ('SCO-0002', 'GALAXY_SEAT', 'AVAILABLE', 88, 51.506800, -0.128600, 'ZONE-A'),
-    ('SCO-0003', 'LUNAR_LITE', 'AVAILABLE', 77, 51.508200, -0.126900, 'ZONE-B'),
-    ('SCO-0004', 'NEBULA_FAMILY', 'AVAILABLE', 81, 51.509000, -0.125400, 'ZONE-B'),
-    ('SCO-0005', 'ORION_ULTRA', 'AVAILABLE', 95, 51.505900, -0.129700, 'ZONE-C')
+    ('SCO-0001', 'ANDROMEDA', NULL, 'AVAILABLE', 92, 'QR-SCO0001', CURRENT_TIMESTAMP, 51.507400, -0.127800, 'ZONE-A'),
+    ('SCO-0002', 'GALAXY_SEAT', NULL, 'AVAILABLE', 88, 'QR-SCO0002', CURRENT_TIMESTAMP, 51.506800, -0.128600, 'ZONE-A'),
+    ('SCO-0003', 'LUNAR_LITE', NULL, 'AVAILABLE', 77, 'QR-SCO0003', CURRENT_TIMESTAMP, 51.508200, -0.126900, 'ZONE-B'),
+    ('SCO-0004', 'NEBULA_FAMILY', NULL, 'AVAILABLE', 81, 'QR-SCO0004', CURRENT_TIMESTAMP, 51.509000, -0.125400, 'ZONE-B'),
+    ('SCO-0005', 'ORION_ULTRA', NULL, 'AVAILABLE', 95, 'QR-SCO0005', CURRENT_TIMESTAMP, 51.505900, -0.129700, 'ZONE-C')
 ON DUPLICATE KEY UPDATE
     type_code = VALUES(type_code),
+    color = VALUES(color),
     status = VALUES(status),
     battery_percent = VALUES(battery_percent),
+    qr_code_id = VALUES(qr_code_id),
+    battery_updated_at = VALUES(battery_updated_at),
     lat = VALUES(lat),
     lng = VALUES(lng),
     zone = VALUES(zone);

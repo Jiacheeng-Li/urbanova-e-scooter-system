@@ -5,8 +5,12 @@ import com.lcyhz.urbanova.service.ScooterService;
 import com.lcyhz.urbanova.vo.scooter.ScooterMapPointVo;
 import com.lcyhz.urbanova.vo.scooter.ScooterIdsByStatusVo;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -45,5 +49,23 @@ public class ScooterController {
     @GetMapping("/scooters/{scooterId}")
     public ApiResponse<Map<String, Object>> getScooterDetail(@PathVariable String scooterId) {
         return ApiResponse.success(scooterService.getScooterDetail(scooterId));
+    }
+
+    @GetMapping("/scooters/{scooterId}/qr")
+    public ApiResponse<Map<String, Object>> getScooterQrMetadata(@PathVariable String scooterId) {
+        return ApiResponse.success(scooterService.getScooterQrMetadata(scooterId));
+    }
+
+    @GetMapping("/scooters/qr/{qrCodeId}")
+    public ApiResponse<Map<String, Object>> getScooterByQrCodeId(@PathVariable String qrCodeId) {
+        return ApiResponse.success(scooterService.getScooterByQrCodeId(qrCodeId));
+    }
+
+    @GetMapping(value = "/scooters/qr/{qrCodeId}/image", produces = MediaType.IMAGE_PNG_VALUE)
+    public ResponseEntity<byte[]> getScooterQrImage(@PathVariable String qrCodeId) {
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CACHE_CONTROL, "public, max-age=300")
+                .contentType(MediaType.IMAGE_PNG)
+                .body(scooterService.renderScooterQrCode(qrCodeId));
     }
 }

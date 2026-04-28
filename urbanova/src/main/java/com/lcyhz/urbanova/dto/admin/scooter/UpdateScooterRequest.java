@@ -25,6 +25,6 @@ public class UpdateScooterRequest {
     private String color;
 
     public boolean hasAnyField() {
-        return typeCode != null || batteryPercent != null || lat != null || lng != null || zone != null;
+        return typeCode != null || batteryPercent != null || lat != null || lng != null || zone != null || color != null;
     }
 }

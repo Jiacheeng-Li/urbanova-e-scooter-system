@@ -7,6 +7,7 @@ import java.math.BigDecimal;
 @Data
 public class ScooterMapPointVo {
     private String scooterId;
+    private String qrCodeId;
     private String typeCode;
     private String typeDisplayName;
     private String typeImageUrl;
