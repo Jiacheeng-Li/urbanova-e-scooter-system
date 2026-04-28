@@ -1,0 +1,156 @@
+{
+  "name": "Urbanova Sprint 3",
+  "values": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080/api/v1",
+      "enabled": true
+    },
+    {
+      "key": "customerEmail",
+      "value": "1123087596@qq.com",
+      "enabled": true
+    },
+    {
+      "key": "customerPassword",
+      "value": "NewPassw0rd!",
+      "enabled": true
+    },
+    {
+      "key": "managerEmail",
+      "value": "admin@qq.com",
+      "enabled": true
+    },
+    {
+      "key": "managerPassword",
+      "value": "12345678",
+      "enabled": true
+    },
+    {
+      "key": "staffEmail",
+      "value": "",
+      "enabled": true
+    },
+    {
+      "key": "staffPassword",
+      "value": "",
+      "enabled": true
+    },
+    {
+      "key": "customerToken",
+      "value": "",
+      "enabled": true
+    },
+    {
+      "key": "managerToken",
+      "value": "",
+      "enabled": true
+    },
+    {
+      "key": "staffToken",
+      "value": "",
+      "enabled": true
+    },
+    {
+      "key": "customerRefreshToken",
+      "value": "",
+      "enabled": true
+    },
+    {
+      "key": "customerId",
+      "value": "",
+      "enabled": true
+    },
+    {
+      "key": "resetToken",
+      "value": "",
+      "enabled": true
+    },
+    {
+      "key": "paymentMethodId",
+      "value": "",
+      "enabled": true
+    },
+    {
+      "key": "scooterId",
+      "value": "SCO-0001",
+      "enabled": true
+    },
+    {
+      "key": "hireOptionId",
+      "value": "",
+      "enabled": true
+    },
+    {
+      "key": "hireOptionCode",
+      "value": "H1",
+      "enabled": true
+    },
+    {
+      "key": "typeCode",
+      "value": "",
+      "enabled": true
+    },
+    {
+      "key": "bookingId",
+      "value": "",
+      "enabled": true
+    },
+    {
+      "key": "bookingId2",
+      "value": "",
+      "enabled": true
+    },
+    {
+      "key": "guestBookingId",
+      "value": "",
+      "enabled": true
+    },
+    {
+      "key": "paymentId",
+      "value": "",
+      "enabled": true
+    },
+    {
+      "key": "deferredPaymentId",
+      "value": "",
+      "enabled": true
+    },
+    {
+      "key": "notificationId",
+      "value": "",
+      "enabled": true
+    },
+    {
+      "key": "issueId",
+      "value": "",
+      "enabled": true
+    },
+    {
+      "key": "discountRuleId",
+      "value": "",
+      "enabled": true
+    },
+    {
+      "key": "newScooterId",
+      "value": "",
+      "enabled": true
+    },
+    {
+      "key": "adminHireOptionId",
+      "value": "",
+      "enabled": true
+    },
+    {
+      "key": "adminTypeCode",
+      "value": "",
+      "enabled": true
+    },
+    {
+      "key": "bookingId3",
+      "value": "",
+      "enabled": true
+    }
+  ],
+  "_postman_variable_scope": "environment"
+}
