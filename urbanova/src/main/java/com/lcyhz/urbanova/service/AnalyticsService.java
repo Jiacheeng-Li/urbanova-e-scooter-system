@@ -3,12 +3,10 @@ package com.lcyhz.urbanova.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.lcyhz.urbanova.domain.DomainConstants;
 import com.lcyhz.urbanova.entity.BookingEntity;
-import com.lcyhz.urbanova.entity.DiscountRuleEntity;
 import com.lcyhz.urbanova.entity.HireOptionEntity;
 import com.lcyhz.urbanova.entity.PaymentEntity;
 import com.lcyhz.urbanova.entity.UserEntity;
 import com.lcyhz.urbanova.mapper.BookingMapper;
-import com.lcyhz.urbanova.mapper.DiscountRuleMapper;
 import com.lcyhz.urbanova.mapper.HireOptionMapper;
 import com.lcyhz.urbanova.mapper.PaymentMapper;
 import com.lcyhz.urbanova.mapper.UserMapper;
@@ -31,20 +29,17 @@ public class AnalyticsService {
     private final BookingMapper bookingMapper;
     private final HireOptionMapper hireOptionMapper;
     private final UserMapper userMapper;
-    private final DiscountRuleMapper discountRuleMapper;
     private final DiscountRuleService discountRuleService;
 
     public AnalyticsService(PaymentMapper paymentMapper,
                             BookingMapper bookingMapper,
                             HireOptionMapper hireOptionMapper,
                             UserMapper userMapper,
-                            DiscountRuleMapper discountRuleMapper,
                             DiscountRuleService discountRuleService) {
         this.paymentMapper = paymentMapper;
         this.bookingMapper = bookingMapper;
         this.hireOptionMapper = hireOptionMapper;
         this.userMapper = userMapper;
-        this.discountRuleMapper = discountRuleMapper;
         this.discountRuleService = discountRuleService;
     }
 
@@ -122,27 +117,23 @@ public class AnalyticsService {
     }
 
     public List<Map<String, Object>> frequentUsers() {
-        DiscountRuleEntity frequentRule = discountRuleMapper.selectOne(new LambdaQueryWrapper<DiscountRuleEntity>()
-                .eq(DiscountRuleEntity::getType, DomainConstants.DiscountRuleType.FREQUENT_USER)
-                .eq(DiscountRuleEntity::getActive, 1));
-        BigDecimal threshold = frequentRule == null || frequentRule.getThresholdHoursPerWeek() == null
-                ? BigDecimal.valueOf(8).setScale(2, RoundingMode.HALF_UP)
-                : frequentRule.getThresholdHoursPerWeek();
+        int threshold = discountRuleService.resolveFrequentUserThreshold();
         return userMapper.selectList(new LambdaQueryWrapper<UserEntity>()
                         .eq(UserEntity::getRole, DomainConstants.ROLE_CUSTOMER)
                         .eq(UserEntity::getAccountStatus, DomainConstants.ACCOUNT_ACTIVE))
                 .stream()
                 .map(user -> {
-                    BigDecimal hours = discountRuleService.calculateRecentHours(user.getUserId());
-                    if (hours.compareTo(threshold) < 0) {
+                    int completedBookings = discountRuleService.countCompletedBookings(user.getUserId());
+                    if (completedBookings < threshold) {
                         return null;
                     }
                     Map<String, Object> row = new LinkedHashMap<>();
                     row.put("userId", user.getUserId());
                     row.put("email", user.getEmail());
                     row.put("fullName", user.getFullName());
-                    row.put("hoursLast7Days", hours);
-                    row.put("thresholdHours", threshold);
+                    row.put("completedBookings", completedBookings);
+                    row.put("thresholdBookings", threshold);
+                    row.put("hoursLast7Days", discountRuleService.calculateRecentHours(user.getUserId()));
                     return row;
                 })
                 .filter(java.util.Objects::nonNull)

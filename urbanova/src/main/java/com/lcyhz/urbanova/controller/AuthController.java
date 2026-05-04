@@ -3,6 +3,8 @@ package com.lcyhz.urbanova.controller;
 import com.lcyhz.urbanova.common.api.ApiResponse;
 import com.lcyhz.urbanova.dto.auth.LoginRequest;
 import com.lcyhz.urbanova.dto.auth.RegisterRequest;
+import com.lcyhz.urbanova.dto.auth.SendEmailVerificationRequest;
+import com.lcyhz.urbanova.dto.auth.VerifyEmailVerificationRequest;
 import com.lcyhz.urbanova.security.AuthContext;
 import com.lcyhz.urbanova.service.AuthService;
 import com.lcyhz.urbanova.service.UserManagementService;
@@ -25,6 +27,16 @@ import java.util.Map;
 public class AuthController {
     private final AuthService authService;
     private final UserManagementService userManagementService;
+
+    @PostMapping("/auth/email-verification/send")
+    public ApiResponse<Map<String, Object>> sendEmailVerification(@Valid @RequestBody SendEmailVerificationRequest request) {
+        return ApiResponse.success(authService.sendRegistrationVerificationCode(request.getEmail()));
+    }
+
+    @PostMapping("/auth/email-verification/verify")
+    public ApiResponse<Map<String, Object>> verifyEmailVerification(@Valid @RequestBody VerifyEmailVerificationRequest request) {
+        return ApiResponse.success(authService.verifyRegistrationVerificationCode(request.getEmail(), request.getCode()));
+    }
 
     @PostMapping("/auth/register")
     public ApiResponse<AuthPayload> register(@Valid @RequestBody RegisterRequest request) {

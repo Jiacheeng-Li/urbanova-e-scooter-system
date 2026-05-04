@@ -145,6 +145,16 @@ public class ScooterServiceImpl implements ScooterService {
     }
 
     @Override
+    public Map<String, Object> resolveQrPayload(String payload) {
+        String qrCodeId = extractQrCodeId(payload);
+        ScooterEntity entity = findByQrCodeId(qrCodeId);
+        Map<String, Object> data = toPublicScooterMap(entity, loadScooterTypeMap().get(entity.getTypeCode()));
+        data.put("payload", qrPayload(entity.getQrCodeId()));
+        data.put("canBook", DomainConstants.ScooterStatus.AVAILABLE.equals(entity.getStatus()));
+        return data;
+    }
+
+    @Override
     public byte[] renderScooterQrCode(String qrCodeId) {
         ScooterEntity entity = findByQrCodeId(qrCodeId);
         try {
@@ -550,6 +560,15 @@ public class ScooterServiceImpl implements ScooterService {
 
     private String qrPayload(String qrCodeId) {
         return "URBANOVA:SCOOTER:QR:" + qrCodeId;
+    }
+
+    private String extractQrCodeId(String payload) {
+        if (payload == null || payload.isBlank()) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST.value(), ErrorCodes.VALIDATION_ERROR, "payload is required");
+        }
+        String normalized = payload.trim().toUpperCase(Locale.ROOT);
+        String prefix = "URBANOVA:SCOOTER:QR:";
+        return normalized.startsWith(prefix) ? normalized.substring(prefix.length()) : normalized;
     }
 
     private Map<String, ScooterTypeEntity> loadScooterTypeMap() {

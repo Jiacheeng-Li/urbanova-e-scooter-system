@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash VARCHAR(255) NOT NULL,
     full_name VARCHAR(100) NOT NULL,
     phone VARCHAR(30) NULL,
+    birth_date DATE NULL,
     role VARCHAR(20) NOT NULL,
     discount_category VARCHAR(20) NOT NULL,
     account_status VARCHAR(20) NOT NULL,
@@ -44,6 +45,23 @@ CREATE TABLE IF NOT EXISTS password_reset_tokens (
     UNIQUE KEY uk_password_reset_tokens_reset_token (reset_token)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS email_verification_codes (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    verification_code_id VARCHAR(40) NOT NULL,
+    email VARCHAR(255) NOT NULL,
+    purpose VARCHAR(20) NOT NULL,
+    code_hash VARCHAR(255) NOT NULL,
+    expires_at DATETIME NOT NULL,
+    verified_at DATETIME NULL,
+    consumed TINYINT(1) NOT NULL DEFAULT 0,
+    attempt_count INT NOT NULL DEFAULT 0,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_email_verification_codes_verification_code_id (verification_code_id),
+    KEY idx_email_verification_codes_email_purpose (email, purpose)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS hire_options (
     id BIGINT NOT NULL AUTO_INCREMENT,
     hire_option_id VARCHAR(40) NOT NULL,
@@ -70,6 +88,33 @@ CREATE TABLE IF NOT EXISTS discount_rules (
     PRIMARY KEY (id),
     UNIQUE KEY uk_discount_rules_discount_rule_id (discount_rule_id),
     UNIQUE KEY uk_discount_rules_type (type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS promotion_policies (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    promotion_policy_id VARCHAR(40) NOT NULL,
+    policy_code VARCHAR(50) NOT NULL,
+    name VARCHAR(120) NOT NULL,
+    category VARCHAR(30) NOT NULL,
+    description VARCHAR(255) NULL,
+    percentage DECIMAL(5,2) NOT NULL,
+    min_age INT NULL,
+    max_age INT NULL,
+    min_completed_bookings INT NULL,
+    max_completed_bookings INT NULL,
+    holiday_campaign TINYINT(1) NOT NULL DEFAULT 0,
+    stackable TINYINT(1) NOT NULL DEFAULT 1,
+    priority INT NOT NULL DEFAULT 100,
+    start_at DATETIME NOT NULL,
+    end_at DATETIME NOT NULL,
+    active TINYINT(1) NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_promotion_policies_promotion_policy_id (promotion_policy_id),
+    UNIQUE KEY uk_promotion_policies_policy_code (policy_code),
+    KEY idx_promotion_policies_category (category),
+    KEY idx_promotion_policies_active_window (active, start_at, end_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS scooter_types (
@@ -244,6 +289,7 @@ CREATE TABLE IF NOT EXISTS issues (
     reporter_user_id VARCHAR(36) NOT NULL,
     booking_id VARCHAR(32) NULL,
     scooter_id VARCHAR(32) NULL,
+    issue_type VARCHAR(20) NOT NULL,
     title VARCHAR(120) NOT NULL,
     description VARCHAR(500) NOT NULL,
     priority VARCHAR(20) NOT NULL,
@@ -269,6 +315,20 @@ CREATE TABLE IF NOT EXISTS issue_comments (
     PRIMARY KEY (id),
     UNIQUE KEY uk_issue_comments_comment_id (comment_id),
     KEY idx_issue_comments_issue_id (issue_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS issue_photos (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    photo_id VARCHAR(40) NOT NULL,
+    issue_id VARCHAR(40) NOT NULL,
+    original_file_name VARCHAR(255) NOT NULL,
+    content_type VARCHAR(60) NOT NULL,
+    file_size BIGINT NOT NULL,
+    storage_path VARCHAR(500) NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_issue_photos_photo_id (photo_id),
+    KEY idx_issue_photos_issue_id (issue_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS audit_logs (

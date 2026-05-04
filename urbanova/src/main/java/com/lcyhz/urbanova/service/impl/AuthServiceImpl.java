@@ -7,13 +7,17 @@ import com.lcyhz.urbanova.domain.DomainConstants;
 import com.lcyhz.urbanova.dto.auth.LoginRequest;
 import com.lcyhz.urbanova.dto.auth.RegisterRequest;
 import com.lcyhz.urbanova.entity.AuthSessionEntity;
+import com.lcyhz.urbanova.entity.EmailVerificationCodeEntity;
 import com.lcyhz.urbanova.entity.PasswordResetTokenEntity;
 import com.lcyhz.urbanova.entity.UserEntity;
 import com.lcyhz.urbanova.mapper.AuthSessionMapper;
+import com.lcyhz.urbanova.mapper.EmailVerificationCodeMapper;
 import com.lcyhz.urbanova.mapper.PasswordResetTokenMapper;
 import com.lcyhz.urbanova.mapper.UserMapper;
 import com.lcyhz.urbanova.security.JwtService;
 import com.lcyhz.urbanova.service.AuthService;
+import com.lcyhz.urbanova.service.support.EmailDeliveryService;
+import com.lcyhz.urbanova.service.support.UserAgeSupport;
 import com.lcyhz.urbanova.vo.auth.AuthPayload;
 import com.lcyhz.urbanova.vo.auth.UserProfileVo;
 import lombok.RequiredArgsConstructor;
@@ -23,10 +27,12 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Random;
 import java.util.UUID;
 
 @Service
@@ -36,10 +42,98 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final AuthSessionMapper authSessionMapper;
+    private final EmailVerificationCodeMapper emailVerificationCodeMapper;
     private final PasswordResetTokenMapper passwordResetTokenMapper;
+    private final EmailDeliveryService emailDeliveryService;
 
     @Value("${app.jwt.refresh-expiration-days:14}")
     private long refreshExpirationDays;
+
+    @Value("${app.auth.email-verification-expiration-minutes:10}")
+    private long emailVerificationExpirationMinutes;
+
+    @Value("${app.auth.email-verification-resend-cooldown-seconds:60}")
+    private long emailVerificationResendCooldownSeconds;
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Map<String, Object> sendRegistrationVerificationCode(String email) {
+        String normalizedEmail = normalizeEmail(email);
+        if (normalizedEmail == null || normalizedEmail.isBlank()) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST.value(), ErrorCodes.VALIDATION_ERROR, "email is required");
+        }
+        UserEntity existing = userMapper.selectOne(new LambdaQueryWrapper<UserEntity>()
+                .eq(UserEntity::getEmail, normalizedEmail));
+        if (existing != null) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST.value(), ErrorCodes.VALIDATION_ERROR, "Email already registered");
+        }
+
+        EmailVerificationCodeEntity latest = latestVerification(normalizedEmail);
+        if (latest != null && latest.getCreatedAt() != null
+                && latest.getCreatedAt().plusSeconds(emailVerificationResendCooldownSeconds).isAfter(LocalDateTime.now())) {
+            throw new BusinessException(HttpStatus.TOO_MANY_REQUESTS.value(), ErrorCodes.PRECONDITION_FAILED,
+                    "Verification code was sent recently. Please wait before requesting another one.");
+        }
+
+        String code = String.format("%06d", new Random().nextInt(1_000_000));
+        LocalDateTime expiresAt = LocalDateTime.now().plusMinutes(emailVerificationExpirationMinutes);
+
+        EmailVerificationCodeEntity entity = new EmailVerificationCodeEntity();
+        entity.setVerificationCodeId("EMV-" + UUID.randomUUID().toString().replace("-", "").substring(0, 10).toUpperCase(Locale.ROOT));
+        entity.setEmail(normalizedEmail);
+        entity.setPurpose("REGISTER");
+        entity.setCodeHash(passwordEncoder.encode(code));
+        entity.setExpiresAt(expiresAt);
+        entity.setVerifiedAt(null);
+        entity.setConsumed(0);
+        entity.setAttemptCount(0);
+        entity.setCreatedAt(LocalDateTime.now());
+        entity.setUpdatedAt(LocalDateTime.now());
+        emailVerificationCodeMapper.insert(entity);
+
+        emailDeliveryService.sendRegistrationVerificationCode(normalizedEmail, code, expiresAt);
+
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("email", normalizedEmail);
+        data.put("sent", true);
+        data.put("expiresAt", expiresAt);
+        return data;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Map<String, Object> verifyRegistrationVerificationCode(String email, String code) {
+        String normalizedEmail = normalizeEmail(email);
+        EmailVerificationCodeEntity latest = latestVerification(normalizedEmail);
+        if (latest == null || latest.getExpiresAt() == null || latest.getExpiresAt().isBefore(LocalDateTime.now())) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST.value(), ErrorCodes.EMAIL_VERIFICATION_INVALID,
+                    "Verification code is invalid or expired");
+        }
+        if (latest.getConsumed() != null && latest.getConsumed() == 1) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST.value(), ErrorCodes.EMAIL_VERIFICATION_INVALID,
+                    "Verification code is no longer available");
+        }
+        if (!passwordEncoder.matches(String.valueOf(code).trim(), latest.getCodeHash())) {
+            latest.setAttemptCount((latest.getAttemptCount() == null ? 0 : latest.getAttemptCount()) + 1);
+            if (latest.getAttemptCount() >= 5) {
+                latest.setConsumed(1);
+            }
+            latest.setUpdatedAt(LocalDateTime.now());
+            emailVerificationCodeMapper.updateById(latest);
+            throw new BusinessException(HttpStatus.BAD_REQUEST.value(), ErrorCodes.EMAIL_VERIFICATION_INVALID,
+                    "Verification code is invalid");
+        }
+
+        latest.setVerifiedAt(LocalDateTime.now());
+        latest.setUpdatedAt(LocalDateTime.now());
+        emailVerificationCodeMapper.updateById(latest);
+
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("email", normalizedEmail);
+        data.put("verified", true);
+        data.put("verifiedAt", latest.getVerifiedAt());
+        return data;
+    }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -51,6 +145,14 @@ public class AuthServiceImpl implements AuthService {
             throw new BusinessException(HttpStatus.BAD_REQUEST.value(), ErrorCodes.VALIDATION_ERROR, "Email already registered");
         }
 
+        EmailVerificationCodeEntity verification = latestVerification(normalizedEmail);
+        if (verification == null || verification.getVerifiedAt() == null
+                || verification.getExpiresAt() == null || verification.getExpiresAt().isBefore(LocalDateTime.now())
+                || (verification.getConsumed() != null && verification.getConsumed() == 1)) {
+            throw new BusinessException(HttpStatus.PRECONDITION_FAILED.value(), ErrorCodes.EMAIL_VERIFICATION_REQUIRED,
+                    "Email verification is required before registration");
+        }
+
         UserEntity user = new UserEntity();
         user.setUserId(UUID.randomUUID().toString());
         user.setEmail(normalizedEmail);
@@ -60,9 +162,14 @@ public class AuthServiceImpl implements AuthService {
         user.setRole(DomainConstants.ROLE_CUSTOMER);
         user.setDiscountCategory(DomainConstants.DISCOUNT_NONE);
         user.setAccountStatus(DomainConstants.ACCOUNT_ACTIVE);
+        user.setBirthDate(normalizeBirthDate(request.getBirthDate()));
         user.setCreatedAt(LocalDateTime.now());
         user.setUpdatedAt(LocalDateTime.now());
         userMapper.insert(user);
+
+        verification.setConsumed(1);
+        verification.setUpdatedAt(LocalDateTime.now());
+        emailVerificationCodeMapper.updateById(verification);
 
         return buildAuthPayload(user);
     }
@@ -259,12 +366,37 @@ public class AuthServiceImpl implements AuthService {
         profileVo.setRole(user.getRole());
         profileVo.setDiscountCategory(user.getDiscountCategory());
         profileVo.setAccountStatus(user.getAccountStatus());
+        profileVo.setBirthDate(user.getBirthDate());
+        profileVo.setAge(UserAgeSupport.resolveAge(user.getBirthDate()));
+        profileVo.setAgeGroup(UserAgeSupport.resolveAgeGroup(user.getBirthDate()));
         profileVo.setCreatedAt(user.getCreatedAt());
         return profileVo;
     }
 
+    private EmailVerificationCodeEntity latestVerification(String normalizedEmail) {
+        if (normalizedEmail == null || normalizedEmail.isBlank()) {
+            return null;
+        }
+        return emailVerificationCodeMapper.selectOne(new LambdaQueryWrapper<EmailVerificationCodeEntity>()
+                .eq(EmailVerificationCodeEntity::getEmail, normalizedEmail)
+                .eq(EmailVerificationCodeEntity::getPurpose, "REGISTER")
+                .orderByDesc(EmailVerificationCodeEntity::getCreatedAt)
+                .last("LIMIT 1"));
+    }
+
     private String normalizeEmail(String email) {
         return email == null ? null : email.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private LocalDate normalizeBirthDate(LocalDate birthDate) {
+        if (birthDate == null) {
+            return null;
+        }
+        if (birthDate.isAfter(LocalDate.now())) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST.value(), ErrorCodes.VALIDATION_ERROR,
+                    "birthDate must not be in the future");
+        }
+        return birthDate;
     }
 
     private String trimToNull(String value) {

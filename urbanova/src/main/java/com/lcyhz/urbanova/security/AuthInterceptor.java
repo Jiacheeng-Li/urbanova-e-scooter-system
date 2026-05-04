@@ -75,6 +75,12 @@ public class AuthInterceptor implements HandlerInterceptor {
         if ("POST".equalsIgnoreCase(method) && "/api/v1/auth/password/reset".equals(path)) {
             return true;
         }
+        if ("POST".equalsIgnoreCase(method) && "/api/v1/auth/email-verification/send".equals(path)) {
+            return true;
+        }
+        if ("POST".equalsIgnoreCase(method) && "/api/v1/auth/email-verification/verify".equals(path)) {
+            return true;
+        }
         if ("GET".equalsIgnoreCase(method) && "/api/v1/hire-options".equals(path)) {
             return true;
         }
@@ -91,6 +97,9 @@ public class AuthInterceptor implements HandlerInterceptor {
             return true;
         }
         if ("GET".equalsIgnoreCase(method) && path.startsWith("/api/v1/scooters/")) {
+            return true;
+        }
+        if ("POST".equalsIgnoreCase(method) && "/api/v1/scooters/qr/resolve".equals(path)) {
             return true;
         }
         if ("POST".equalsIgnoreCase(method) && "/api/v1/pricing/quotes".equals(path)) {

@@ -1,6 +1,6 @@
 # Urbanova API Design
 
-Last updated: 2026-04-26
+Last updated: 2026-05-04
 
 ## 1. Scope
 
@@ -33,7 +33,7 @@ Covered backlog:
 
 Notes:
 - ID 24 and ID 25 are frontend concerns. No dedicated backend endpoints are required for them.
-- Extra retained endpoints also exist: `/scooters/ids`, `/scooters/*/qr`, `/scooters/qr/*`, `/scooter-types/*`, `/admin/scooter-types/*`, `/bookings/{id}` patch update.
+- Extra retained compatibility endpoints also exist: `/admin/discount-rules/*`, `/scooters/ids`, `/scooters/*/qr`, `/scooters/qr/*`, `/scooter-types/*`, `/admin/scooter-types/*`, `/bookings/{id}` patch update.
 
 ## 2. Global Conventions
 
@@ -105,6 +105,8 @@ Failure:
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
+| POST | `/auth/email-verification/send` | Public | Send registration verification code to email |
+| POST | `/auth/email-verification/verify` | Public | Verify registration email code |
 | POST | `/auth/register` | Public | Register customer and issue tokens |
 | POST | `/auth/login` | Public | Login and issue tokens |
 | POST | `/auth/refresh` | Public | Rotate refresh token and issue a new access token |
@@ -139,6 +141,9 @@ Failure:
 | GET | `/hire-options` | Public | Active hire options |
 | POST | `/pricing/quotes` | Public, optional Bearer | Price quote with discount preview when token is provided |
 | GET | `/discounts/eligibility` | Bearer | Current user discount eligibility |
+| GET | `/admin/promotion-policies` | MANAGER | List promotion policies |
+| POST | `/admin/promotion-policies` | MANAGER | Create promotion policy |
+| PATCH | `/admin/promotion-policies/{promotionPolicyId}` | MANAGER | Update promotion policy |
 | GET | `/admin/hire-options` | MANAGER | List all hire options |
 | POST | `/admin/hire-options` | MANAGER | Create hire option |
 | PATCH | `/admin/hire-options/{hireOptionId}` | MANAGER | Update hire option |
@@ -155,6 +160,7 @@ Failure:
 | GET | `/scooters/{scooterId}` | Public | Scooter detail |
 | GET | `/scooters/{scooterId}/qr` | Public | QR metadata for one scooter |
 | GET | `/scooters/qr/{qrCodeId}` | Public | Resolve scooter from QR code id |
+| POST | `/scooters/qr/resolve` | Public | Resolve scooter from raw QR payload string |
 | GET | `/scooters/qr/{qrCodeId}/image` | Public | Render PNG QR code image |
 | GET | `/scooters/availability` | Public | Status counts summary |
 | GET | `/scooters/ids` | Public | Scooter IDs filtered by status |
@@ -214,6 +220,8 @@ Failure:
 | GET | `/issues` | Bearer | List current user's issues |
 | GET | `/issues/{issueId}` | Bearer | Issue detail |
 | POST | `/issues/{issueId}/comments` | Bearer | Add issue comment |
+| POST | `/issues/{issueId}/photos` | Bearer | Upload issue photos |
+| GET | `/issues/{issueId}/photos/{photoId}` | Bearer | Download issue photo |
 | GET | `/admin/issues` | MANAGER | Admin issue queue |
 | PATCH | `/admin/issues/{issueId}/priority` | MANAGER | Update issue priority |
 | PATCH | `/admin/issues/{issueId}/status` | MANAGER | Update issue status |
@@ -243,7 +251,30 @@ Failure:
   "email": "user@example.com",
   "password": "Passw0rd!",
   "fullName": "Urbanova User",
-  "phone": "12345678"
+  "phone": "12345678",
+  "birthDate": "2006-08-16"
+}
+```
+
+Registration behavior:
+- email verification must be completed before registration
+- `birthDate` is optional
+- if `birthDate` is present, the backend stores it and derives `age` and `ageGroup`
+
+`POST /api/v1/auth/email-verification/send`
+
+```json
+{
+  "email": "user@example.com"
+}
+```
+
+`POST /api/v1/auth/email-verification/verify`
+
+```json
+{
+  "email": "user@example.com",
+  "code": "123456"
 }
 ```
 
@@ -330,18 +361,38 @@ Current implementation is coursework-oriented:
 
 Behavior:
 - without bearer token: base price only
-- with bearer token: applies currently eligible discount rules
+- with bearer token: applies currently active promotion policies
+- policy stacking is capped by backend business logic
 
-`POST /api/v1/admin/discount-rules`
+`POST /api/v1/admin/promotion-policies`
 
 ```json
 {
-  "type": "FREQUENT_USER",
-  "thresholdHoursPerWeek": 8.0,
-  "percentage": 15.0,
+  "policyCode": "FIRST_THREE_RIDES",
+  "name": "First three rides welcome offer",
+  "category": "NEW_RIDER",
+  "description": "Applies before a rider completes three successful rides.",
+  "percentage": 8.0,
+  "minCompletedBookings": 0,
+  "maxCompletedBookings": 2,
+  "holidayCampaign": false,
+  "stackable": true,
+  "priority": 10,
+  "startAt": "2026-05-04T00:00:00",
+  "endAt": "2026-05-10T23:59:59",
   "active": true
 }
 ```
+
+Promotion policy rules:
+- non-holiday policies must last at least 1 day and at most 7 days
+- holiday policies can use longer windows
+- seeded policies currently cover:
+  - first three rides
+  - riders aged 12 to 17
+  - riders aged 45 and above
+  - loyalty tiers for 5+, 10+, and 20+ completed rides
+  - Labour Day holiday discount
 
 ### 4.4 Scooter and Map
 
@@ -376,6 +427,19 @@ Charging behavior:
 - after 3 minutes the scheduler sets battery to `100` and status to `AVAILABLE`
 - there is no countdown response; completion is asynchronous
 
+`POST /api/v1/scooters/qr/resolve`
+
+```json
+{
+  "payload": "URBANOVA:SCOOTER:QR:QR-SCO0001"
+}
+```
+
+Behavior:
+- accepts either the full QR payload string or a bare `qrCodeId`
+- returns the matched scooter record
+- includes `canBook` so the client can decide whether to continue booking flow
+
 ### 4.5 Booking
 
 `POST /api/v1/bookings`
@@ -392,6 +456,7 @@ Current behavior:
 - booking is created as `PENDING_PAYMENT`
 - scooter is moved from `AVAILABLE` to `RESERVED`
 - booking price already includes eligible discounts
+- if the rider has a stored `birthDate` and is under 12 years old, booking creation is rejected
 
 `PATCH /api/v1/bookings/{bookingId}`
 
@@ -473,11 +538,18 @@ If `amount` is omitted, the implementation refunds the remaining refundable bala
 {
   "bookingId": "BKG-12345678",
   "scooterId": "SCO-0001",
+  "issueType": "FAULT_REPORT",
   "title": "Brake feels weak",
-  "description": "Braking distance increased during the ride",
-  "priority": "LOW"
+  "description": "Braking distance increased during the ride"
 }
 ```
+
+Issue priority mapping:
+- `FAULT_REPORT` -> `URGENT`
+- `COMPLAINT` -> `HIGH`
+- `OTHER` -> `MEDIUM`
+
+If a fault report is linked to a scooter that is not currently reserved, charging, or in use, the backend marks the scooter as `FAULT`.
 
 `POST /api/v1/issues/{issueId}/comments`
 
@@ -487,10 +559,23 @@ If `amount` is omitted, the implementation refunds the remaining refundable bala
 }
 ```
 
+`POST /api/v1/issues/{issueId}/photos`
+
+Content type:
+- `multipart/form-data`
+
+Form field:
+- `files`: one or more image files
+
+Photo rules:
+- maximum 5 images per upload request
+- supported formats: JPEG, PNG, WEBP
+- each image must be 5 MB or smaller
+
 Issue resolution behavior:
 - `POST /api/v1/admin/issues/{issueId}/resolve` sets the issue to `RESOLVED`
 - `PATCH /api/v1/admin/issues/{issueId}/status` with `RESOLVED` or `CLOSED` also counts as operationally resolved
-- if the issue is linked to a scooter currently in `FAULT`, `UNDER_REPAIR`, `MAINTENANCE`, or `UNAVAILABLE`, the scooter is automatically restored to `AVAILABLE`
+- if the issue is linked to a scooter currently in `FAULT`, `UNDER_REPAIR`, `MAINTENANCE`, or `UNAVAILABLE`, the scooter is automatically restored to `AVAILABLE` or `LOW_BATTERY` depending on remaining battery
 
 ### 4.8 Analytics
 
@@ -525,13 +610,15 @@ Current implemented transitions:
 ### 5.3 Issue
 
 Current implemented values:
-- priority: `LOW`, `HIGH`, `CRITICAL`
+- issueType: `FAULT_REPORT`, `COMPLAINT`, `OTHER`
+- priority: `MEDIUM`, `HIGH`, `URGENT`
 - status: `OPEN`, `IN_REVIEW`, `RESOLVED`, `CLOSED`
 
 ## 6. Security and Concurrency Notes
 
 Implemented security / reliability measures:
 - BCrypt password hashing
+- email verification codes stored in database and validated before registration
 - JWT access token + stored refresh session rotation
 - password reset tokens stored in database
 - manager audit logs in `audit_logs`
@@ -566,7 +653,7 @@ This is how the current backend addresses ID 3 and ID 23.
 | 19 | `/admin/analytics/revenue/weekly-by-hire-option` |
 | 20 | `/admin/analytics/revenue/daily-combined` |
 | 21 | `/admin/analytics/revenue/weekly-chart` |
-| 22 | `/discounts/eligibility`, `/admin/discount-rules/*`, quote discount preview |
+| 22 | `/discounts/eligibility`, `/admin/promotion-policies/*`, quote discount preview |
 | 23 | transactional reservation, scooter versioning, stored audit/event records |
 | 24 | frontend concern, no backend endpoint |
 | 25 | frontend concern, no backend endpoint |

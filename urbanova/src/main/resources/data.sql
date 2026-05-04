@@ -19,6 +19,56 @@ ON DUPLICATE KEY UPDATE
     percentage = VALUES(percentage),
     active = VALUES(active);
 
+INSERT INTO promotion_policies (
+    promotion_policy_id, policy_code, name, category, description, percentage,
+    min_age, max_age, min_completed_bookings, max_completed_bookings,
+    holiday_campaign, stackable, priority, start_at, end_at, active
+)
+VALUES
+    ('PRM-FIRST3', 'FIRST_THREE_RIDES', 'First three rides welcome offer', 'NEW_RIDER',
+     'Applies to riders before they complete their third successful ride.', 8.00,
+     NULL, NULL, 0, 2, 0, 1, 10,
+     DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 1 DAY), DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 6 DAY), 1),
+    ('PRM-U18', 'UNDER_18_RIDER', 'Young rider support discount', 'AGE_BASED',
+     'Supports riders aged 12 to 17 with a short-term age-based discount.', 6.00,
+     12, 17, NULL, NULL, 0, 1, 20,
+     DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 1 DAY), DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 6 DAY), 1),
+    ('PRM-45PLUS', 'AGE_45_PLUS', '45 plus rider support discount', 'AGE_BASED',
+     'Supports riders aged 45 and above with a short-term age-based discount.', 7.00,
+     45, NULL, NULL, NULL, 0, 1, 25,
+     DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 1 DAY), DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 6 DAY), 1),
+    ('PRM-LOYALTY5', 'LOYALTY_5_PLUS', 'Loyalty tier 1', 'LOYALTY',
+     'Applies after five completed rides.', 5.00,
+     NULL, NULL, 5, 9, 0, 1, 30,
+     DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 1 DAY), DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 6 DAY), 1),
+    ('PRM-LOYALTY10', 'LOYALTY_10_PLUS', 'Loyalty tier 2', 'LOYALTY',
+     'Applies after ten completed rides.', 8.00,
+     NULL, NULL, 10, 19, 0, 1, 31,
+     DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 1 DAY), DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 6 DAY), 1),
+    ('PRM-LOYALTY20', 'LOYALTY_20_PLUS', 'Loyalty tier 3', 'LOYALTY',
+     'Applies after twenty completed rides.', 12.00,
+     NULL, NULL, 20, NULL, 0, 1, 32,
+     DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 1 DAY), DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 6 DAY), 1),
+    ('PRM-LABOUR2026', 'LABOUR_DAY_2026', 'Labour Day holiday campaign', 'HOLIDAY',
+     'Seasonal promotion for the Labour Day holiday period.', 10.00,
+     NULL, NULL, NULL, NULL, 1, 1, 40,
+     '2026-05-01 00:00:00', '2026-05-07 23:59:59', 1)
+ON DUPLICATE KEY UPDATE
+    name = VALUES(name),
+    category = VALUES(category),
+    description = VALUES(description),
+    percentage = VALUES(percentage),
+    min_age = VALUES(min_age),
+    max_age = VALUES(max_age),
+    min_completed_bookings = VALUES(min_completed_bookings),
+    max_completed_bookings = VALUES(max_completed_bookings),
+    holiday_campaign = VALUES(holiday_campaign),
+    stackable = VALUES(stackable),
+    priority = VALUES(priority),
+    start_at = VALUES(start_at),
+    end_at = VALUES(end_at),
+    active = VALUES(active);
+
 INSERT INTO scooter_types (type_code, display_name, image_url, description, active)
 VALUES
     ('ANDROMEDA', 'ANDROMEDA', '/images/scooter-types/andromeda.png', 'High-performance urban scooter.', 1),

@@ -5,6 +5,10 @@ import com.lcyhz.urbanova.domain.DomainConstants;
 import com.lcyhz.urbanova.security.AuthContext;
 import com.lcyhz.urbanova.service.IssueManagementService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -12,7 +16,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
@@ -49,6 +55,31 @@ public class IssueController {
                 AuthContext.getRequiredUser().getRole(),
                 issueId,
                 request == null ? null : String.valueOf(request.get("message"))));
+    }
+
+    @PostMapping(value = "/issues/{issueId}/photos", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<Map<String, Object>> addPhotos(@PathVariable String issueId,
+                                                      @RequestPart("files") List<MultipartFile> files) {
+        return ApiResponse.success(issueManagementService.addPhotos(
+                AuthContext.getRequiredUserId(),
+                AuthContext.getRequiredUser().getRole(),
+                issueId,
+                files));
+    }
+
+    @GetMapping("/issues/{issueId}/photos/{photoId}")
+    public ResponseEntity<ByteArrayResource> getPhoto(@PathVariable String issueId,
+                                                      @PathVariable String photoId) {
+        IssueManagementService.PhotoDownload photo = issueManagementService.loadPhoto(
+                AuthContext.getRequiredUserId(),
+                AuthContext.getRequiredUser().getRole(),
+                issueId,
+                photoId);
+        MediaType mediaType = MediaType.parseMediaType(photo.contentType());
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + photo.fileName() + "\"")
+                .contentType(mediaType)
+                .body(photo.resource());
     }
 
     @GetMapping("/admin/issues")

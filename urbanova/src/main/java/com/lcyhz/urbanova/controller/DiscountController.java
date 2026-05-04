@@ -32,14 +32,15 @@ public class DiscountController {
     @GetMapping("/admin/discount-rules")
     public ApiResponse<List<Map<String, Object>>> listRules() {
         AuthContext.requireRole(DomainConstants.ROLE_MANAGER);
-        return ApiResponse.success(discountRuleService.listRules());
+        return ApiResponse.success(discountRuleService.listPolicies());
     }
 
     @PostMapping("/admin/discount-rules")
     public ApiResponse<Map<String, Object>> createRule(@RequestBody Map<String, Object> request) {
         AuthContext.requireRole(DomainConstants.ROLE_MANAGER);
-        Map<String, Object> result = discountRuleService.createRule(request);
-        platformSupportService.recordAudit("DISCOUNT_RULE_CREATED", "DISCOUNT_RULE", String.valueOf(result.get("discountRuleId")), String.valueOf(result.get("type")));
+        Map<String, Object> result = discountRuleService.createPolicy(request);
+        platformSupportService.recordAudit("PROMOTION_POLICY_CREATED", "PROMOTION_POLICY",
+                String.valueOf(result.get("promotionPolicyId")), String.valueOf(result.get("policyCode")));
         return ApiResponse.success(result);
     }
 
@@ -47,8 +48,34 @@ public class DiscountController {
     public ApiResponse<Map<String, Object>> updateRule(@PathVariable String discountRuleId,
                                                        @RequestBody Map<String, Object> request) {
         AuthContext.requireRole(DomainConstants.ROLE_MANAGER);
-        Map<String, Object> result = discountRuleService.updateRule(discountRuleId, request);
-        platformSupportService.recordAudit("DISCOUNT_RULE_UPDATED", "DISCOUNT_RULE", String.valueOf(result.get("discountRuleId")), String.valueOf(result.get("type")));
+        Map<String, Object> result = discountRuleService.updatePolicy(discountRuleId, request);
+        platformSupportService.recordAudit("PROMOTION_POLICY_UPDATED", "PROMOTION_POLICY",
+                String.valueOf(result.get("promotionPolicyId")), String.valueOf(result.get("policyCode")));
+        return ApiResponse.success(result);
+    }
+
+    @GetMapping("/admin/promotion-policies")
+    public ApiResponse<List<Map<String, Object>>> listPolicies() {
+        AuthContext.requireRole(DomainConstants.ROLE_MANAGER);
+        return ApiResponse.success(discountRuleService.listPolicies());
+    }
+
+    @PostMapping("/admin/promotion-policies")
+    public ApiResponse<Map<String, Object>> createPolicy(@RequestBody Map<String, Object> request) {
+        AuthContext.requireRole(DomainConstants.ROLE_MANAGER);
+        Map<String, Object> result = discountRuleService.createPolicy(request);
+        platformSupportService.recordAudit("PROMOTION_POLICY_CREATED", "PROMOTION_POLICY",
+                String.valueOf(result.get("promotionPolicyId")), String.valueOf(result.get("policyCode")));
+        return ApiResponse.success(result);
+    }
+
+    @PatchMapping("/admin/promotion-policies/{promotionPolicyId}")
+    public ApiResponse<Map<String, Object>> updatePolicy(@PathVariable String promotionPolicyId,
+                                                         @RequestBody Map<String, Object> request) {
+        AuthContext.requireRole(DomainConstants.ROLE_MANAGER);
+        Map<String, Object> result = discountRuleService.updatePolicy(promotionPolicyId, request);
+        platformSupportService.recordAudit("PROMOTION_POLICY_UPDATED", "PROMOTION_POLICY",
+                String.valueOf(result.get("promotionPolicyId")), String.valueOf(result.get("policyCode")));
         return ApiResponse.success(result);
     }
 }

@@ -5,6 +5,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
+import java.time.LocalDate;
+
 @Data
 public class RegisterRequest {
     @NotBlank(message = "email is required")
@@ -21,5 +23,7 @@ public class RegisterRequest {
 
     @Size(max = 30, message = "phone length must not exceed 30")
     private String phone;
+
+    private LocalDate birthDate;
 }
 

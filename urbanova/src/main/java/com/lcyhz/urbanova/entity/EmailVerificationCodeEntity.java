@@ -5,24 +5,21 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Data
-@TableName("users")
-public class UserEntity {
+@TableName("email_verification_codes")
+public class EmailVerificationCodeEntity {
     @TableId(type = IdType.AUTO)
     private Long id;
-    private String userId;
+    private String verificationCodeId;
     private String email;
-    private String passwordHash;
-    private String fullName;
-    private String phone;
-    private String role;
-    private String discountCategory;
-    private String accountStatus;
-    private LocalDate birthDate;
+    private String purpose;
+    private String codeHash;
+    private LocalDateTime expiresAt;
+    private LocalDateTime verifiedAt;
+    private Integer consumed;
+    private Integer attemptCount;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }
-

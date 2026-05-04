@@ -11,12 +11,14 @@ import com.lcyhz.urbanova.mapper.BookingMapper;
 import com.lcyhz.urbanova.mapper.PaymentMapper;
 import com.lcyhz.urbanova.mapper.UserMapper;
 import com.lcyhz.urbanova.service.support.PlatformSupportService;
+import com.lcyhz.urbanova.service.support.UserAgeSupport;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
@@ -55,6 +57,9 @@ public class UserManagementService {
         }
         if (request.containsKey("discountCategory")) {
             user.setDiscountCategory(normalizeDiscountCategory((String) request.get("discountCategory")));
+        }
+        if (request.containsKey("birthDate")) {
+            user.setBirthDate(normalizeBirthDate(request.get("birthDate")));
         }
         user.setUpdatedAt(LocalDateTime.now());
         userMapper.updateById(user);
@@ -145,6 +150,9 @@ public class UserManagementService {
         data.put("role", user.getRole());
         data.put("discountCategory", user.getDiscountCategory());
         data.put("accountStatus", user.getAccountStatus());
+        data.put("birthDate", user.getBirthDate());
+        data.put("age", UserAgeSupport.resolveAge(user.getBirthDate()));
+        data.put("ageGroup", UserAgeSupport.resolveAgeGroup(user.getBirthDate()));
         data.put("createdAt", user.getCreatedAt());
         data.put("updatedAt", user.getUpdatedAt());
         return data;
@@ -212,6 +220,25 @@ public class UserManagementService {
                     "accountStatus must be ACTIVE, SUSPENDED, or DELETED");
         }
         return normalized;
+    }
+
+    private LocalDate normalizeBirthDate(Object value) {
+        if (value == null || String.valueOf(value).trim().isEmpty()) {
+            return null;
+        }
+        try {
+            LocalDate birthDate = value instanceof LocalDate localDate ? localDate : LocalDate.parse(String.valueOf(value).trim());
+            if (birthDate.isAfter(LocalDate.now())) {
+                throw new BusinessException(HttpStatus.BAD_REQUEST.value(), ErrorCodes.VALIDATION_ERROR,
+                        "birthDate must not be in the future");
+            }
+            return birthDate;
+        } catch (BusinessException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST.value(), ErrorCodes.VALIDATION_ERROR,
+                    "birthDate must use YYYY-MM-DD format");
+        }
     }
 
     private String trimToNull(String value) {

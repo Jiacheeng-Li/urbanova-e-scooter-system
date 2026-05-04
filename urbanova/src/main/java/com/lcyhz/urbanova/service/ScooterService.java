@@ -25,6 +25,8 @@ public interface ScooterService {
 
     Map<String, Object> getScooterByQrCodeId(String qrCodeId);
 
+    Map<String, Object> resolveQrPayload(String payload);
+
     byte[] renderScooterQrCode(String qrCodeId);
 
     ScooterIdsByStatusVo queryScooterIdsByStatus(String status);

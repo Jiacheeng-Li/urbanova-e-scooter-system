@@ -14,6 +14,7 @@ public final class DomainConstants {
     public static final String DISCOUNT_NONE = "NONE";
     public static final String DISCOUNT_STUDENT = "STUDENT";
     public static final String DISCOUNT_SENIOR = "SENIOR";
+    public static final int MINIMUM_RIDER_AGE = 12;
     public static final String CUSTOMER_TYPE_REGISTERED = "REGISTERED";
     public static final String CUSTOMER_TYPE_GUEST = "GUEST";
     public static final String PAYMENT_STATUS_UNPAID = "UNPAID";
@@ -96,6 +97,15 @@ public final class DomainConstants {
         public static final String SCOOTER_CHARGED = "SCOOTER_CHARGED";
     }
 
+    public static final class IssueType {
+        private IssueType() {
+        }
+
+        public static final String FAULT_REPORT = "FAULT_REPORT";
+        public static final String COMPLAINT = "COMPLAINT";
+        public static final String OTHER = "OTHER";
+    }
+
     public static final class ConfirmationStatus {
         private ConfirmationStatus() {
         }
@@ -109,8 +119,10 @@ public final class DomainConstants {
         }
 
         public static final String LOW = "LOW";
+        public static final String MEDIUM = "MEDIUM";
         public static final String HIGH = "HIGH";
         public static final String CRITICAL = "CRITICAL";
+        public static final String URGENT = "URGENT";
     }
 
     public static final class IssueStatus {
@@ -130,5 +142,28 @@ public final class DomainConstants {
         public static final String FREQUENT_USER = "FREQUENT_USER";
         public static final String STUDENT = "STUDENT";
         public static final String SENIOR = "SENIOR";
+    }
+
+    public static final class AgeGroup {
+        private AgeGroup() {
+        }
+
+        public static final String UNKNOWN = "UNKNOWN";
+        public static final String CHILD_UNDER_12 = "CHILD_UNDER_12";
+        public static final String TEEN_12_TO_17 = "TEEN_12_TO_17";
+        public static final String YOUNG_ADULT_18_TO_24 = "YOUNG_ADULT_18_TO_24";
+        public static final String ADULT_25_TO_44 = "ADULT_25_TO_44";
+        public static final String ADULT_45_PLUS = "ADULT_45_PLUS";
+    }
+
+    public static final class PromotionCategory {
+        private PromotionCategory() {
+        }
+
+        public static final String NEW_RIDER = "NEW_RIDER";
+        public static final String AGE_BASED = "AGE_BASED";
+        public static final String LOYALTY = "LOYALTY";
+        public static final String HOLIDAY = "HOLIDAY";
+        public static final String CUSTOM = "CUSTOM";
     }
 }

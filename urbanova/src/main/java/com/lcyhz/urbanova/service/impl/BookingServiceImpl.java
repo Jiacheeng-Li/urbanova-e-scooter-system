@@ -13,14 +13,17 @@ import com.lcyhz.urbanova.entity.BookingEntity;
 import com.lcyhz.urbanova.entity.HireOptionEntity;
 import com.lcyhz.urbanova.entity.PaymentEntity;
 import com.lcyhz.urbanova.entity.ScooterEntity;
+import com.lcyhz.urbanova.entity.UserEntity;
 import com.lcyhz.urbanova.mapper.BookingConfirmationMapper;
 import com.lcyhz.urbanova.mapper.BookingMapper;
 import com.lcyhz.urbanova.mapper.HireOptionMapper;
 import com.lcyhz.urbanova.mapper.PaymentMapper;
 import com.lcyhz.urbanova.mapper.ScooterMapper;
+import com.lcyhz.urbanova.mapper.UserMapper;
 import com.lcyhz.urbanova.service.BookingService;
 import com.lcyhz.urbanova.service.DiscountRuleService;
 import com.lcyhz.urbanova.service.ScooterService;
+import com.lcyhz.urbanova.service.support.UserAgeSupport;
 import com.lcyhz.urbanova.service.support.PlatformSupportService;
 import com.lcyhz.urbanova.vo.booking.BookingDetailVo;
 import com.lcyhz.urbanova.vo.booking.BookingListItemVo;
@@ -54,6 +57,7 @@ public class BookingServiceImpl implements BookingService {
     private final BookingMapper bookingMapper;
     private final HireOptionMapper hireOptionMapper;
     private final ScooterMapper scooterMapper;
+    private final UserMapper userMapper;
     private final PaymentMapper paymentMapper;
     private final BookingConfirmationMapper bookingConfirmationMapper;
     private final DiscountRuleService discountRuleService;
@@ -69,6 +73,7 @@ public class BookingServiceImpl implements BookingService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public CreateBookingVo createBooking(String userId, CreateBookingRequest request) {
+        ensureEligibleRider(userId);
         HireOptionEntity hireOption = findHireOption(request.getHireOptionId());
         ScooterEntity scooter = requireAvailableScooter(request.getScooterId());
         LocalDateTime startAt = request.getPlannedStartAt() == null ? LocalDateTime.now() : request.getPlannedStartAt();
@@ -200,6 +205,7 @@ public class BookingServiceImpl implements BookingService {
     @Transactional(rollbackFor = Exception.class)
     public Map<String, Object> startBooking(String userId, String role, String bookingId) {
         BookingEntity booking = requireAccessibleBooking(userId, role, bookingId);
+        ensureEligibleRider(booking.getUserId());
         if (!DomainConstants.BookingStatus.CONFIRMED.equals(booking.getStatus())) {
             throw new BusinessException(HttpStatus.CONFLICT.value(), ErrorCodes.BOOKING_CONFLICT, "Booking cannot be started in current state");
         }
@@ -355,6 +361,7 @@ public class BookingServiceImpl implements BookingService {
                 releaseScooter(booking.getScooterId());
             }
             if (DomainConstants.BookingStatus.ACTIVE.equals(status)) {
+                ensureEligibleRider(booking.getUserId());
                 setScooterStatus(booking.getScooterId(), DomainConstants.ScooterStatus.IN_USE);
                 if (booking.getActualStartAt() == null) {
                     booking.setActualStartAt(LocalDateTime.now());
@@ -514,6 +521,21 @@ public class BookingServiceImpl implements BookingService {
             throw new BusinessException(HttpStatus.CONFLICT.value(), ErrorCodes.SCOOTER_NOT_AVAILABLE, "Scooter is no longer available");
         }
         return scooter;
+    }
+
+    private void ensureEligibleRider(String userId) {
+        if (!hasText(userId)) {
+            return;
+        }
+        UserEntity user = userMapper.selectOne(new LambdaQueryWrapper<UserEntity>()
+                .eq(UserEntity::getUserId, userId));
+        if (user == null || user.getBirthDate() == null) {
+            return;
+        }
+        if (UserAgeSupport.isUnderMinimumRiderAge(user.getBirthDate())) {
+            throw new BusinessException(HttpStatus.FORBIDDEN.value(), ErrorCodes.RIDER_AGE_RESTRICTED,
+                    "Users under 12 years old are not allowed to ride");
+        }
     }
 
     private void reserveScooter(String scooterId) {

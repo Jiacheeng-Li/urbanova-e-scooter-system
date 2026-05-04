@@ -8,6 +8,10 @@ import com.lcyhz.urbanova.vo.auth.UserProfileVo;
 import java.util.Map;
 
 public interface AuthService {
+    Map<String, Object> sendRegistrationVerificationCode(String email);
+
+    Map<String, Object> verifyRegistrationVerificationCode(String email, String code);
+
     AuthPayload register(RegisterRequest request);
 
     AuthPayload login(LoginRequest request);

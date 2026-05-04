@@ -8,20 +8,15 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 @Data
-@TableName("issues")
-public class IssueEntity {
+@TableName("issue_photos")
+public class IssuePhotoEntity {
     @TableId(type = IdType.AUTO)
     private Long id;
+    private String photoId;
     private String issueId;
-    private String reporterUserId;
-    private String bookingId;
-    private String scooterId;
-    private String issueType;
-    private String title;
-    private String description;
-    private String priority;
-    private String status;
-    private String managerFeedback;
+    private String originalFileName;
+    private String contentType;
+    private Long fileSize;
+    private String storagePath;
     private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
 }

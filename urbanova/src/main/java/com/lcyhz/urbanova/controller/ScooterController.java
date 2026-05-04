@@ -11,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -59,6 +60,11 @@ public class ScooterController {
     @GetMapping("/scooters/qr/{qrCodeId}")
     public ApiResponse<Map<String, Object>> getScooterByQrCodeId(@PathVariable String qrCodeId) {
         return ApiResponse.success(scooterService.getScooterByQrCodeId(qrCodeId));
+    }
+
+    @PostMapping("/scooters/qr/resolve")
+    public ApiResponse<Map<String, Object>> resolveQrPayload(@RequestBody Map<String, Object> request) {
+        return ApiResponse.success(scooterService.resolveQrPayload(request == null ? null : String.valueOf(request.get("payload"))));
     }
 
     @GetMapping(value = "/scooters/qr/{qrCodeId}/image", produces = MediaType.IMAGE_PNG_VALUE)
