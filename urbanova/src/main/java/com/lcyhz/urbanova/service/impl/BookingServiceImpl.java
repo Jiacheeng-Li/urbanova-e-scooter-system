@@ -23,6 +23,7 @@ import com.lcyhz.urbanova.mapper.UserMapper;
 import com.lcyhz.urbanova.service.BookingService;
 import com.lcyhz.urbanova.service.DiscountRuleService;
 import com.lcyhz.urbanova.service.ScooterService;
+import com.lcyhz.urbanova.service.support.EmailDeliveryService;
 import com.lcyhz.urbanova.service.support.UserAgeSupport;
 import com.lcyhz.urbanova.service.support.PlatformSupportService;
 import com.lcyhz.urbanova.vo.booking.BookingDetailVo;
@@ -63,6 +64,7 @@ public class BookingServiceImpl implements BookingService {
     private final DiscountRuleService discountRuleService;
     private final ScooterService scooterService;
     private final PlatformSupportService platformSupportService;
+    private final EmailDeliveryService emailDeliveryService;
 
     @Value("${app.scooter.low-battery-threshold:20}")
     private int lowBatteryThreshold;
@@ -405,11 +407,19 @@ public class BookingServiceImpl implements BookingService {
     public Map<String, Object> resendBookingConfirmation(String userId, String role, String bookingId) {
         BookingEntity booking = requireAccessibleBooking(userId, role, bookingId);
         String recipientEmail = resolveConfirmationRecipient(booking);
+        boolean emailSent = emailDeliveryService.sendBookingConfirmationEmail(
+                recipientEmail,
+                booking.getBookingRef(),
+                booking.getScooterId(),
+                booking.getStartAt(),
+                booking.getEndAt(),
+                booking.getPriceFinal());
         BookingConfirmationEntity confirmation = platformSupportService.createOrRefreshConfirmation(
                 booking,
                 recipientEmail,
                 "EMAIL",
                 "Booking confirmation for " + booking.getBookingRef(),
+                emailSent ? "RESENT" : "FAILED",
                 true);
         if (booking.getUserId() != null) {
             platformSupportService.createNotification(booking.getUserId(), DomainConstants.NotificationType.BOOKING_CONFIRMATION,

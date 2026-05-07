@@ -76,6 +76,7 @@ public class PlatformSupportService {
                                                                  String recipientEmail,
                                                                  String channel,
                                                                  String message,
+                                                                 String status,
                                                                  boolean resend) {
         BookingConfirmationEntity existing = bookingConfirmationMapper.selectOne(new LambdaQueryWrapper<BookingConfirmationEntity>()
                 .eq(BookingConfirmationEntity::getBookingId, booking.getBookingId())
@@ -90,7 +91,7 @@ public class PlatformSupportService {
             entity.setUserId(booking.getUserId());
             entity.setRecipientEmail(trimToNull(recipientEmail));
             entity.setChannel(channel);
-            entity.setStatus(resend ? "RESENT" : "SENT");
+            entity.setStatus(status);
             entity.setMessage(limit(message, 255));
             entity.setResendCount(resend ? 1 : 0);
             entity.setCreatedAt(now);
@@ -101,7 +102,7 @@ public class PlatformSupportService {
 
         existing.setRecipientEmail(trimToNull(recipientEmail));
         existing.setChannel(channel);
-        existing.setStatus(resend ? "RESENT" : "SENT");
+        existing.setStatus(status);
         existing.setMessage(limit(message, 255));
         existing.setResendCount((existing.getResendCount() == null ? 0 : existing.getResendCount()) + (resend ? 1 : 0));
         existing.setUpdatedAt(now);

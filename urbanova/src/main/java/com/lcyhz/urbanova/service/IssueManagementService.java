@@ -9,10 +9,13 @@ import com.lcyhz.urbanova.entity.IssueCommentEntity;
 import com.lcyhz.urbanova.entity.IssueEntity;
 import com.lcyhz.urbanova.entity.IssuePhotoEntity;
 import com.lcyhz.urbanova.entity.ScooterEntity;
+import com.lcyhz.urbanova.entity.UserEntity;
 import com.lcyhz.urbanova.mapper.IssueCommentMapper;
 import com.lcyhz.urbanova.mapper.IssueMapper;
 import com.lcyhz.urbanova.mapper.IssuePhotoMapper;
 import com.lcyhz.urbanova.mapper.ScooterMapper;
+import com.lcyhz.urbanova.mapper.UserMapper;
+import com.lcyhz.urbanova.service.support.EmailDeliveryService;
 import com.lcyhz.urbanova.service.support.PlatformSupportService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
@@ -41,6 +44,8 @@ public class IssueManagementService {
     private final IssueCommentMapper issueCommentMapper;
     private final IssuePhotoMapper issuePhotoMapper;
     private final ScooterMapper scooterMapper;
+    private final UserMapper userMapper;
+    private final EmailDeliveryService emailDeliveryService;
     private final PlatformSupportService platformSupportService;
 
     @Value("${app.storage.issue-photos-dir:storage/issues}")
@@ -53,11 +58,15 @@ public class IssueManagementService {
                                   IssueCommentMapper issueCommentMapper,
                                   IssuePhotoMapper issuePhotoMapper,
                                   ScooterMapper scooterMapper,
+                                  UserMapper userMapper,
+                                  EmailDeliveryService emailDeliveryService,
                                   PlatformSupportService platformSupportService) {
         this.issueMapper = issueMapper;
         this.issueCommentMapper = issueCommentMapper;
         this.issuePhotoMapper = issuePhotoMapper;
         this.scooterMapper = scooterMapper;
+        this.userMapper = userMapper;
+        this.emailDeliveryService = emailDeliveryService;
         this.platformSupportService = platformSupportService;
     }
 
@@ -79,6 +88,15 @@ public class IssueManagementService {
         issue.setUpdatedAt(LocalDateTime.now());
         issueMapper.insert(issue);
         markScooterFaultIfNeeded(issueType, issue.getScooterId());
+        emailDeliveryService.sendIssueSubmissionEmail(
+                findReporterEmail(userId),
+                issue.getIssueId(),
+                issue.getIssueType(),
+                issue.getTitle(),
+                issue.getPriority(),
+                issue.getScooterId(),
+                issue.getBookingId(),
+                issue.getCreatedAt());
         return toIssueMap(issue, List.of());
     }
 
@@ -278,6 +296,15 @@ public class IssueManagementService {
                 .set("updated_at", LocalDateTime.now())
                 .setSql("version = version + 1");
         scooterMapper.update(null, updateWrapper);
+    }
+
+    private String findReporterEmail(String userId) {
+        if (!hasText(userId)) {
+            return null;
+        }
+        UserEntity user = userMapper.selectOne(new LambdaQueryWrapper<UserEntity>()
+                .eq(UserEntity::getUserId, userId));
+        return user == null ? null : trimToNull(user.getEmail());
     }
 
     private void restoreScooterAvailability(String scooterId) {

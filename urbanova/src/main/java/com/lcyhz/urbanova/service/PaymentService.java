@@ -11,6 +11,7 @@ import com.lcyhz.urbanova.entity.UserEntity;
 import com.lcyhz.urbanova.mapper.BookingMapper;
 import com.lcyhz.urbanova.mapper.PaymentMapper;
 import com.lcyhz.urbanova.mapper.UserMapper;
+import com.lcyhz.urbanova.service.support.EmailDeliveryService;
 import com.lcyhz.urbanova.service.support.PlatformSupportService;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -32,17 +33,20 @@ public class PaymentService {
     private final PaymentMethodService paymentMethodService;
     private final PlatformSupportService platformSupportService;
     private final UserMapper userMapper;
+    private final EmailDeliveryService emailDeliveryService;
 
     public PaymentService(PaymentMapper paymentMapper,
                           BookingMapper bookingMapper,
                           PaymentMethodService paymentMethodService,
                           PlatformSupportService platformSupportService,
-                          UserMapper userMapper) {
+                          UserMapper userMapper,
+                          EmailDeliveryService emailDeliveryService) {
         this.paymentMapper = paymentMapper;
         this.bookingMapper = bookingMapper;
         this.paymentMethodService = paymentMethodService;
         this.platformSupportService = platformSupportService;
         this.userMapper = userMapper;
+        this.emailDeliveryService = emailDeliveryService;
     }
 
     @Transactional(rollbackFor = Exception.class, noRollbackFor = BusinessException.class)
@@ -198,11 +202,19 @@ public class PaymentService {
 
         if (DomainConstants.PAYMENT_STATUS_PAID.equals(booking.getPaymentStatus())) {
             String recipientEmail = resolveRecipientEmail(booking);
+            boolean emailSent = emailDeliveryService.sendBookingConfirmationEmail(
+                    recipientEmail,
+                    booking.getBookingRef(),
+                    booking.getScooterId(),
+                    booking.getStartAt(),
+                    booking.getEndAt(),
+                    booking.getPriceFinal());
             platformSupportService.createOrRefreshConfirmation(
                     booking,
                     recipientEmail,
                     "EMAIL",
                     "Booking confirmation for " + booking.getBookingRef(),
+                    emailSent ? "SENT" : "FAILED",
                     false);
             platformSupportService.createNotification(booking.getUserId(), DomainConstants.NotificationType.BOOKING_CONFIRMATION,
                     "Booking confirmed", "Booking " + booking.getBookingRef() + " is confirmed", booking.getBookingId());

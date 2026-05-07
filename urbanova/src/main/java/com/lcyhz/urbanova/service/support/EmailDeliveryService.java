@@ -11,6 +11,8 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import jakarta.mail.Message;
 import jakarta.mail.MessagingException;
@@ -18,6 +20,7 @@ import jakarta.mail.Session;
 import jakarta.mail.Transport;
 import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -27,6 +30,8 @@ import java.util.Properties;
 
 @Service
 public class EmailDeliveryService {
+    private static final Logger log = LoggerFactory.getLogger(EmailDeliveryService.class);
+
     private final ObjectProvider<JavaMailSender> mailSenderProvider;
     private final MailOAuth2TokenService mailOAuth2TokenService;
     private final RestClient restClient;
@@ -78,15 +83,96 @@ public class EmailDeliveryService {
     }
 
     public void sendRegistrationVerificationCode(String email, String code, LocalDateTime expiresAt) {
+        sendRequiredTextEmail(email, "Urbanova registration verification code", """
+                Your Urbanova registration verification code is %s.
+
+                The code expires at %s.
+
+                If you did not request this code, you can ignore this email.
+                """.formatted(code, expiresAt));
+    }
+
+    public boolean sendBookingConfirmationEmail(String email,
+                                                String bookingRef,
+                                                String scooterId,
+                                                LocalDateTime startAt,
+                                                LocalDateTime endAt,
+                                                BigDecimal finalPrice) {
+        if (isBlank(email)) {
+            return false;
+        }
+        String body = """
+                Your Urbanova booking has been confirmed.
+
+                Booking reference: %s
+                Scooter ID: %s
+                Planned start: %s
+                Planned end: %s
+                Total amount: GBP %s
+
+                Thank you for booking with Urbanova.
+                """.formatted(
+                defaultText(bookingRef),
+                defaultText(scooterId),
+                defaultText(startAt),
+                defaultText(endAt),
+                finalPrice == null ? "0.00" : finalPrice.toPlainString()
+        );
+        return sendBestEffortTextEmail(email, "Urbanova booking confirmation", body, "booking confirmation");
+    }
+
+    public boolean sendIssueSubmissionEmail(String email,
+                                            String issueId,
+                                            String issueType,
+                                            String title,
+                                            String priority,
+                                            String scooterId,
+                                            String bookingId,
+                                            LocalDateTime createdAt) {
+        if (isBlank(email)) {
+            return false;
+        }
+
+        StringBuilder body = new StringBuilder();
+        body.append("We received your Urbanova issue submission.\n\n")
+                .append("Issue ID: ").append(defaultText(issueId)).append('\n')
+                .append("Issue type: ").append(defaultText(issueType)).append('\n')
+                .append("Title: ").append(defaultText(title)).append('\n')
+                .append("Priority: ").append(defaultText(priority)).append('\n');
+        appendOptionalLine(body, "Scooter ID", scooterId);
+        appendOptionalLine(body, "Booking ID", bookingId);
+        body.append("Submitted at: ").append(defaultText(createdAt)).append("\n\n")
+                .append("Our team will review your submission and update you when needed.");
+        return sendBestEffortTextEmail(email, "Urbanova issue submission received", body.toString(), "issue submission");
+    }
+
+    private void sendRequiredTextEmail(String email, String subject, String body) {
+        sendTextEmail(email, subject, body);
+    }
+
+    private boolean sendBestEffortTextEmail(String email, String subject, String body, String context) {
+        try {
+            sendTextEmail(email, subject, body);
+            return true;
+        } catch (RuntimeException ex) {
+            log.warn("Failed to send {} email to {}: {}", context, email, ex.getMessage());
+            return false;
+        }
+    }
+
+    private void sendTextEmail(String email, String subject, String body) {
         if (mailOAuth2TokenService.isEnabled()) {
             if ("graph".equalsIgnoreCase(oauth2Transport)) {
-                sendRegistrationVerificationCodeViaGraph(email, code, expiresAt);
+                sendTextEmailViaGraph(email, subject, body);
             } else {
-                sendRegistrationVerificationCodeViaOAuth2(email, code, expiresAt);
+                sendTextEmailViaOAuth2(email, subject, body);
             }
             return;
         }
+        sendTextEmailViaSpring(email, subject, body);
+    }
 
+    private void sendTextEmailViaSpring(String email, String subject, String body) {
         JavaMailSender mailSender = mailSenderProvider.getIfAvailable();
         if (mailSender == null || isBlank(mailHost) || isBlank(fromAddress)) {
             throw new BusinessException(HttpStatus.SERVICE_UNAVAILABLE.value(), ErrorCodes.EMAIL_DELIVERY_NOT_CONFIGURED,
@@ -96,18 +182,12 @@ public class EmailDeliveryService {
         SimpleMailMessage message = new SimpleMailMessage();
         message.setFrom(fromAddress);
         message.setTo(email);
-        message.setSubject("Urbanova registration verification code");
-        message.setText("""
-                Your Urbanova registration verification code is %s.
-
-                The code expires at %s.
-
-                If you did not request this code, you can ignore this email.
-                """.formatted(code, expiresAt));
+        message.setSubject(subject);
+        message.setText(body);
         mailSender.send(message);
     }
 
-    private void sendRegistrationVerificationCodeViaOAuth2(String email, String code, LocalDateTime expiresAt) {
+    private void sendTextEmailViaOAuth2(String email, String subject, String body) {
         if (isBlank(mailHost) || isBlank(fromAddress) || isBlank(mailUsername)) {
             throw new BusinessException(HttpStatus.SERVICE_UNAVAILABLE.value(), ErrorCodes.EMAIL_DELIVERY_NOT_CONFIGURED,
                     "Outlook OAuth2 email delivery is missing SMTP host, username, or from address");
@@ -133,15 +213,9 @@ public class EmailDeliveryService {
             MimeMessage message = new MimeMessage(session);
             message.setFrom(new InternetAddress(fromAddress));
             message.setRecipients(Message.RecipientType.TO, InternetAddress.parse(email));
-            message.setSubject("Urbanova registration verification code", StandardCharsets.UTF_8.name());
+            message.setSubject(subject, StandardCharsets.UTF_8.name());
             message.setSentDate(new Date());
-            message.setText("""
-                    Your Urbanova registration verification code is %s.
-
-                    The code expires at %s.
-
-                    If you did not request this code, you can ignore this email.
-                    """.formatted(code, expiresAt), StandardCharsets.UTF_8.name());
+            message.setText(body, StandardCharsets.UTF_8.name());
 
             try (Transport transport = session.getTransport("smtp")) {
                 transport.connect(mailHost, mailPort, mailUsername, accessToken);
@@ -153,7 +227,7 @@ public class EmailDeliveryService {
         }
     }
 
-    private void sendRegistrationVerificationCodeViaGraph(String email, String code, LocalDateTime expiresAt) {
+    private void sendTextEmailViaGraph(String email, String subject, String body) {
         if (isBlank(fromAddress) || isBlank(graphSendMailUrl)) {
             throw new BusinessException(HttpStatus.SERVICE_UNAVAILABLE.value(), ErrorCodes.EMAIL_DELIVERY_NOT_CONFIGURED,
                     "Microsoft Graph email delivery is missing sender address or sendMail URL");
@@ -162,16 +236,10 @@ public class EmailDeliveryService {
         String accessToken = mailOAuth2TokenService.getAccessToken();
         Map<String, Object> payload = Map.of(
                 "message", Map.of(
-                        "subject", "Urbanova registration verification code",
+                        "subject", subject,
                         "body", Map.of(
                                 "contentType", "Text",
-                                "content", """
-                                        Your Urbanova registration verification code is %s.
-
-                                        The code expires at %s.
-
-                                        If you did not request this code, you can ignore this email.
-                                        """.formatted(code, expiresAt)
+                                "content", body
                         ),
                         "toRecipients", List.of(Map.of(
                                 "emailAddress", Map.of("address", email)
@@ -192,6 +260,16 @@ public class EmailDeliveryService {
             throw new BusinessException(HttpStatus.SERVICE_UNAVAILABLE.value(), ErrorCodes.EMAIL_DELIVERY_FAILED,
                     "Failed to send email through Microsoft Graph sendMail: " + ex.getMessage());
         }
+    }
+
+    private void appendOptionalLine(StringBuilder builder, String label, String value) {
+        if (!isBlank(value)) {
+            builder.append(label).append(": ").append(value.trim()).append('\n');
+        }
+    }
+
+    private String defaultText(Object value) {
+        return value == null ? "-" : String.valueOf(value);
     }
 
     private boolean isBlank(String value) {

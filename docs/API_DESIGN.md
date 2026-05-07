@@ -1,6 +1,6 @@
 # Urbanova API Design
 
-Last updated: 2026-05-04
+Last updated: 2026-05-07
 
 ## 1. Scope
 
@@ -519,6 +519,8 @@ Notes:
 - if settlement is not deferred, the current default path immediately simulates success/failure
 - a fully paid booking moves from `PENDING_PAYMENT` to `CONFIRMED`
 - confirmation and notification records are created when a booking becomes fully paid
+- when email delivery is configured, a confirmed booking also triggers a real confirmation email to the booking recipient
+- `POST /api/v1/bookings/{bookingId}/confirmation/resend` now attempts to send a real email again and updates confirmation status to `RESENT` or `FAILED`
 
 `POST /api/v1/payments/{paymentId}/refund`
 
@@ -573,6 +575,7 @@ Photo rules:
 - each image must be 5 MB or smaller
 
 Issue resolution behavior:
+- when email delivery is configured, a successful issue submission also sends a receipt email to the reporting user
 - `POST /api/v1/admin/issues/{issueId}/resolve` sets the issue to `RESOLVED`
 - `PATCH /api/v1/admin/issues/{issueId}/status` with `RESOLVED` or `CLOSED` also counts as operationally resolved
 - if the issue is linked to a scooter currently in `FAULT`, `UNDER_REPAIR`, `MAINTENANCE`, or `UNAVAILABLE`, the scooter is automatically restored to `AVAILABLE` or `LOW_BATTERY` depending on remaining battery
