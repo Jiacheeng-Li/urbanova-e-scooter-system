@@ -96,7 +96,7 @@ const authStore = useAuthStore()
 const currentRoute = computed(() => route.path)
 
 const goBackToHome = () => {
-  router.push('/hire-options')
+  router.push('/Urbanova')
 }
 
 const handleLogout = () => {

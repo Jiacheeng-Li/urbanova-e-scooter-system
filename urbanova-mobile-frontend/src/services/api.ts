@@ -557,3 +557,40 @@ export const HireOptionService = {
 };
 
 export { api, ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY };
+
+// api.ts 中添加
+
+// ============ 附近车辆查询 ============
+
+export interface NearbyScooterPoint {
+  scooterId: string;
+  typeCode?: string;
+  typeDisplayName?: string;
+  typeImageUrl?: string;
+  status: string;
+  batteryPercent: number;
+  lat: number;
+  lng: number;
+  zone: string | null;
+  distance?: number;  // 距离中心的公里数
+}
+
+export interface NearbyScootersResponse {
+  code: number;
+  message: string;
+  data: NearbyScooterPoint[];
+  count: number;
+  centerLat: number;
+  centerLng: number;
+  radiusKm: number;
+}
+
+export const LocationService = {
+  // 查询附近5km内的车辆
+  getNearbyScooters: async (lat: number, lng: number, radiusKm: number = 5): Promise<NearbyScootersResponse> => {
+    const response = await api.get<NearbyScootersResponse>('/location/nearby', {
+      params: { lat, lng, radiusKm }
+    });
+    return response.data;
+  },
+};

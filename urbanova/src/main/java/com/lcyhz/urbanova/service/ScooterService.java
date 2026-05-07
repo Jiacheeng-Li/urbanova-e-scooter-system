@@ -4,11 +4,13 @@ import com.lcyhz.urbanova.dto.admin.scooter.BulkUpdateScooterStatusRequest;
 import com.lcyhz.urbanova.dto.admin.scooter.CreateScooterRequest;
 import com.lcyhz.urbanova.dto.admin.scooter.UpdateScooterRequest;
 import com.lcyhz.urbanova.dto.admin.scooter.UpdateScooterStatusRequest;
+import com.lcyhz.urbanova.entity.ScooterEntity;
 import com.lcyhz.urbanova.vo.scooter.AdminScooterVo;
 import com.lcyhz.urbanova.vo.scooter.BulkScooterStatusUpdateVo;
 import com.lcyhz.urbanova.vo.scooter.ScooterMapPointVo;
 import com.lcyhz.urbanova.vo.scooter.ScooterIdsByStatusVo;
 
+import java.math.BigDecimal;
 import java.util.Map;
 import java.util.List;
 
@@ -44,4 +46,6 @@ public interface ScooterService {
     Map<String, Object> startCharging(String scooterId);
 
     void processScooterLifecycle();
+
+    List<ScooterEntity> findNearbyScooters(BigDecimal bigDecimal, BigDecimal bigDecimal1, BigDecimal bigDecimal2, BigDecimal bigDecimal3, BigDecimal bigDecimal4, BigDecimal bigDecimal5, Double radiusKm);
 }
