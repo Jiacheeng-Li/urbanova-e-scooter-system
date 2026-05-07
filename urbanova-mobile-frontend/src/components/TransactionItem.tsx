@@ -10,7 +10,7 @@ interface Props {
 
 const TransactionItem: React.FC<Props> = ({ tx }) => (
   <View style={styles.row}>
-    <View>
+    <View style={styles.left}>
       <Text style={styles.title}>{tx.title}</Text>
       <Text style={styles.subtitle}>{tx.description}</Text>
       <Text style={styles.date}>{formatDate(tx.date)}</Text>
@@ -31,13 +31,19 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  left: {
+    flex: 1,
+    paddingRight: 12,
+  },
   title: {
     color: colors.textPrimary,
     fontWeight: '600',
+    fontSize: 15,
   },
   subtitle: {
     color: colors.textSecondary,
     marginTop: 4,
+    fontSize: 12,
   },
   date: {
     color: colors.textMuted,
@@ -45,7 +51,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   amount: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
   },
   credit: {

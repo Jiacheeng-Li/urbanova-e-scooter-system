@@ -42,10 +42,17 @@ export interface Trip {
 export interface Pass {
   id: string;
   name: string;
+  code?: string;
   price: number;
   durationMinutes: number;
   currency: string;
   highlight?: string;
+  quote?: {
+    basePrice: number;
+    finalPrice: number;
+    currency: string;
+    appliedDiscounts: Array<{ type: string; amount: number }>;
+  };
 }
 
 export interface WalletTransaction {
@@ -62,6 +69,9 @@ export type RootStackParamList = {
   Register: undefined;
   Main: undefined;
   RideDetail: { bookingId: string };
+  VehicleDetail: { vehicleId: string };
+  Feedback: undefined;
+  Notifications: undefined;
 };
 
 export type MainTabParamList = {

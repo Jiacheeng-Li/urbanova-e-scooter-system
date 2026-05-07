@@ -22,7 +22,10 @@ const PassCard: React.FC<Props> = ({ pass, onSelect, isSelected }) => (
         {isSelected ? <Text style={styles.selectionPill}>Selected</Text> : null}
       </View>
       {pass.highlight ? <Text style={styles.tag}>{pass.highlight}</Text> : null}
-      <Text style={styles.price}>{formatCurrency(pass.price, 'GBP')}</Text>
+      {pass.quote?.appliedDiscounts?.length ? (
+        <Text style={styles.originalPrice}>{formatCurrency(Number(pass.quote.basePrice || pass.price), 'GBP')}</Text>
+      ) : null}
+      <Text style={styles.price}>{formatCurrency(Number(pass.quote?.finalPrice ?? pass.price), 'GBP')}</Text>
       <Text style={styles.description}>{Math.round(pass.durationMinutes / 60)} hour package</Text>
       <Text style={styles.footer}>Billing currency: {pass.currency || 'GBP'}</Text>
     </LinearGradient>
@@ -75,6 +78,11 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginTop: 12,
   },
+  originalPrice: {
+    color: colors.textMuted,
+    textDecorationLine: 'line-through',
+    marginTop: 12,
+  },
   description: {
     color: colors.textSecondary,
     marginTop: 6,
@@ -82,6 +90,7 @@ const styles = StyleSheet.create({
   footer: {
     marginTop: 16,
     color: colors.textMuted,
+    fontSize: 11,
   },
   selectionPill: {
     borderWidth: 1,
