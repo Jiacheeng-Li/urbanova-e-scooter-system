@@ -1,8 +1,10 @@
 package com.lcyhz.urbanova.controller;
 
 import com.lcyhz.urbanova.common.api.ApiResponse;
+import com.lcyhz.urbanova.dto.auth.ForgotPasswordRequest;
 import com.lcyhz.urbanova.dto.auth.LoginRequest;
 import com.lcyhz.urbanova.dto.auth.RegisterRequest;
+import com.lcyhz.urbanova.dto.auth.ResetPasswordRequest;
 import com.lcyhz.urbanova.dto.auth.SendEmailVerificationRequest;
 import com.lcyhz.urbanova.dto.auth.VerifyEmailVerificationRequest;
 import com.lcyhz.urbanova.security.AuthContext;
@@ -60,15 +62,16 @@ public class AuthController {
     }
 
     @PostMapping("/auth/password/forgot")
-    public ApiResponse<Map<String, Object>> forgotPassword(@RequestBody Map<String, Object> request) {
-        return ApiResponse.success(authService.forgotPassword(request == null ? null : (String) request.get("email")));
+    public ApiResponse<Map<String, Object>> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        return ApiResponse.success(authService.forgotPassword(request.getEmail()));
     }
 
     @PostMapping("/auth/password/reset")
-    public ApiResponse<Map<String, Object>> resetPassword(@RequestBody Map<String, Object> request) {
+    public ApiResponse<Map<String, Object>> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
         return ApiResponse.success(authService.resetPassword(
-                request == null ? null : (String) request.get("resetToken"),
-                request == null ? null : (String) request.get("newPassword")));
+                request.getEmail(),
+                request.getCode(),
+                request.getNewPassword()));
     }
 
     @GetMapping("/users/me")

@@ -9,6 +9,7 @@ public final class ErrorCodes {
     public static final String AUTH_FORBIDDEN = "AUTH_FORBIDDEN";
     public static final String EMAIL_VERIFICATION_REQUIRED = "EMAIL_VERIFICATION_REQUIRED";
     public static final String EMAIL_VERIFICATION_INVALID = "EMAIL_VERIFICATION_INVALID";
+    public static final String PASSWORD_RESET_CODE_INVALID = "PASSWORD_RESET_CODE_INVALID";
     public static final String EMAIL_DELIVERY_NOT_CONFIGURED = "EMAIL_DELIVERY_NOT_CONFIGURED";
     public static final String EMAIL_DELIVERY_FAILED = "EMAIL_DELIVERY_FAILED";
     public static final String VALIDATION_ERROR = "VALIDATION_ERROR";

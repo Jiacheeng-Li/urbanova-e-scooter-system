@@ -92,6 +92,16 @@ public class EmailDeliveryService {
                 """.formatted(code, expiresAt));
     }
 
+    public void sendPasswordResetCode(String email, String code, LocalDateTime expiresAt) {
+        sendRequiredTextEmail(email, "Urbanova password reset code", """
+                Your Urbanova password reset code is %s.
+
+                The code expires at %s.
+
+                If you did not request a password reset, you can ignore this email.
+                """.formatted(code, expiresAt));
+    }
+
     public boolean sendBookingConfirmationEmail(String email,
                                                 String bookingRef,
                                                 String scooterId,

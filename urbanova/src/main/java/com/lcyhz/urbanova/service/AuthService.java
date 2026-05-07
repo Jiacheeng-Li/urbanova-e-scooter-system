@@ -22,7 +22,7 @@ public interface AuthService {
 
     Map<String, Object> forgotPassword(String email);
 
-    Map<String, Object> resetPassword(String resetToken, String newPassword);
+    Map<String, Object> resetPassword(String email, String code, String newPassword);
 
     UserProfileVo getCurrentUser(String userId);
 }

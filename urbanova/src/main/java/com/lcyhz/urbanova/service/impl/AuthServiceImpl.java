@@ -8,11 +8,9 @@ import com.lcyhz.urbanova.dto.auth.LoginRequest;
 import com.lcyhz.urbanova.dto.auth.RegisterRequest;
 import com.lcyhz.urbanova.entity.AuthSessionEntity;
 import com.lcyhz.urbanova.entity.EmailVerificationCodeEntity;
-import com.lcyhz.urbanova.entity.PasswordResetTokenEntity;
 import com.lcyhz.urbanova.entity.UserEntity;
 import com.lcyhz.urbanova.mapper.AuthSessionMapper;
 import com.lcyhz.urbanova.mapper.EmailVerificationCodeMapper;
-import com.lcyhz.urbanova.mapper.PasswordResetTokenMapper;
 import com.lcyhz.urbanova.mapper.UserMapper;
 import com.lcyhz.urbanova.security.JwtService;
 import com.lcyhz.urbanova.service.AuthService;
@@ -38,12 +36,14 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class AuthServiceImpl implements AuthService {
+    private static final String PURPOSE_REGISTER = "REGISTER";
+    private static final String PURPOSE_PASSWORD_RESET = "PASSWORD_RESET";
+
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final AuthSessionMapper authSessionMapper;
     private final EmailVerificationCodeMapper emailVerificationCodeMapper;
-    private final PasswordResetTokenMapper passwordResetTokenMapper;
     private final EmailDeliveryService emailDeliveryService;
 
     @Value("${app.jwt.refresh-expiration-days:14}")
@@ -54,6 +54,12 @@ public class AuthServiceImpl implements AuthService {
 
     @Value("${app.auth.email-verification-resend-cooldown-seconds:60}")
     private long emailVerificationResendCooldownSeconds;
+
+    @Value("${app.auth.password-reset-expiration-minutes:10}")
+    private long passwordResetExpirationMinutes;
+
+    @Value("${app.auth.password-reset-resend-cooldown-seconds:60}")
+    private long passwordResetResendCooldownSeconds;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -68,30 +74,13 @@ public class AuthServiceImpl implements AuthService {
             throw new BusinessException(HttpStatus.BAD_REQUEST.value(), ErrorCodes.VALIDATION_ERROR, "Email already registered");
         }
 
-        EmailVerificationCodeEntity latest = latestVerification(normalizedEmail);
-        if (latest != null && latest.getCreatedAt() != null
-                && latest.getCreatedAt().plusSeconds(emailVerificationResendCooldownSeconds).isAfter(LocalDateTime.now())) {
-            throw new BusinessException(HttpStatus.TOO_MANY_REQUESTS.value(), ErrorCodes.PRECONDITION_FAILED,
-                    "Verification code was sent recently. Please wait before requesting another one.");
-        }
-
-        String code = String.format("%06d", new Random().nextInt(1_000_000));
-        LocalDateTime expiresAt = LocalDateTime.now().plusMinutes(emailVerificationExpirationMinutes);
-
-        EmailVerificationCodeEntity entity = new EmailVerificationCodeEntity();
-        entity.setVerificationCodeId("EMV-" + UUID.randomUUID().toString().replace("-", "").substring(0, 10).toUpperCase(Locale.ROOT));
-        entity.setEmail(normalizedEmail);
-        entity.setPurpose("REGISTER");
-        entity.setCodeHash(passwordEncoder.encode(code));
-        entity.setExpiresAt(expiresAt);
-        entity.setVerifiedAt(null);
-        entity.setConsumed(0);
-        entity.setAttemptCount(0);
-        entity.setCreatedAt(LocalDateTime.now());
-        entity.setUpdatedAt(LocalDateTime.now());
-        emailVerificationCodeMapper.insert(entity);
-
-        emailDeliveryService.sendRegistrationVerificationCode(normalizedEmail, code, expiresAt);
+        LocalDateTime expiresAt = createAndSendVerificationCode(
+                normalizedEmail,
+                PURPOSE_REGISTER,
+                emailVerificationExpirationMinutes,
+                emailVerificationResendCooldownSeconds,
+                "Verification code was sent recently. Please wait before requesting another one.",
+                (targetEmail, code, expiry) -> emailDeliveryService.sendRegistrationVerificationCode(targetEmail, code, expiry));
 
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("email", normalizedEmail);
@@ -104,29 +93,11 @@ public class AuthServiceImpl implements AuthService {
     @Transactional(rollbackFor = Exception.class)
     public Map<String, Object> verifyRegistrationVerificationCode(String email, String code) {
         String normalizedEmail = normalizeEmail(email);
-        EmailVerificationCodeEntity latest = latestVerification(normalizedEmail);
-        if (latest == null || latest.getExpiresAt() == null || latest.getExpiresAt().isBefore(LocalDateTime.now())) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST.value(), ErrorCodes.EMAIL_VERIFICATION_INVALID,
-                    "Verification code is invalid or expired");
-        }
-        if (latest.getConsumed() != null && latest.getConsumed() == 1) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST.value(), ErrorCodes.EMAIL_VERIFICATION_INVALID,
-                    "Verification code is no longer available");
-        }
-        if (!passwordEncoder.matches(String.valueOf(code).trim(), latest.getCodeHash())) {
-            latest.setAttemptCount((latest.getAttemptCount() == null ? 0 : latest.getAttemptCount()) + 1);
-            if (latest.getAttemptCount() >= 5) {
-                latest.setConsumed(1);
-            }
-            latest.setUpdatedAt(LocalDateTime.now());
-            emailVerificationCodeMapper.updateById(latest);
-            throw new BusinessException(HttpStatus.BAD_REQUEST.value(), ErrorCodes.EMAIL_VERIFICATION_INVALID,
-                    "Verification code is invalid");
-        }
-
-        latest.setVerifiedAt(LocalDateTime.now());
-        latest.setUpdatedAt(LocalDateTime.now());
-        emailVerificationCodeMapper.updateById(latest);
+        EmailVerificationCodeEntity latest = verifyCode(normalizedEmail, PURPOSE_REGISTER, code,
+                ErrorCodes.EMAIL_VERIFICATION_INVALID,
+                "Verification code is invalid or expired",
+                "Verification code is no longer available",
+                "Verification code is invalid");
 
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("email", normalizedEmail);
@@ -145,7 +116,7 @@ public class AuthServiceImpl implements AuthService {
             throw new BusinessException(HttpStatus.BAD_REQUEST.value(), ErrorCodes.VALIDATION_ERROR, "Email already registered");
         }
 
-        EmailVerificationCodeEntity verification = latestVerification(normalizedEmail);
+        EmailVerificationCodeEntity verification = latestVerification(normalizedEmail, PURPOSE_REGISTER);
         if (verification == null || verification.getVerifiedAt() == null
                 || verification.getExpiresAt() == null || verification.getExpiresAt().isBefore(LocalDateTime.now())
                 || (verification.getConsumed() != null && verification.getConsumed() == 1)) {
@@ -243,43 +214,49 @@ public class AuthServiceImpl implements AuthService {
         data.put("accepted", true);
         data.put("email", normalizedEmail);
         if (user == null) {
-            data.put("resetToken", null);
             return data;
         }
 
-        PasswordResetTokenEntity token = new PasswordResetTokenEntity();
-        token.setResetTokenId("RST-" + UUID.randomUUID().toString().replace("-", "").substring(0, 10).toUpperCase(Locale.ROOT));
-        token.setUserId(user.getUserId());
-        token.setResetToken(UUID.randomUUID().toString().replace("-", "") + UUID.randomUUID().toString().replace("-", ""));
-        token.setExpiresAt(LocalDateTime.now().plusHours(1));
-        token.setUsed(0);
-        token.setCreatedAt(LocalDateTime.now());
-        token.setUpdatedAt(LocalDateTime.now());
-        passwordResetTokenMapper.insert(token);
+        EmailVerificationCodeEntity latest = latestVerification(normalizedEmail, PURPOSE_PASSWORD_RESET);
+        if (latest != null && latest.getCreatedAt() != null
+                && latest.getCreatedAt().plusSeconds(passwordResetResendCooldownSeconds).isAfter(LocalDateTime.now())) {
+            return data;
+        }
 
-        data.put("resetToken", token.getResetToken());
-        data.put("expiresAt", token.getExpiresAt());
+        createAndSendVerificationCode(
+                normalizedEmail,
+                PURPOSE_PASSWORD_RESET,
+                passwordResetExpirationMinutes,
+                passwordResetResendCooldownSeconds,
+                "Password reset code was sent recently. Please wait before requesting another one.",
+                (targetEmail, code, expiresAt) -> emailDeliveryService.sendPasswordResetCode(targetEmail, code, expiresAt));
         return data;
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public Map<String, Object> resetPassword(String resetToken, String newPassword) {
-        PasswordResetTokenEntity token = passwordResetTokenMapper.selectOne(new LambdaQueryWrapper<PasswordResetTokenEntity>()
-                .eq(PasswordResetTokenEntity::getResetToken, resetToken)
-                .eq(PasswordResetTokenEntity::getUsed, 0));
-        if (token == null || token.getExpiresAt() == null || token.getExpiresAt().isBefore(LocalDateTime.now())) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST.value(), ErrorCodes.AUTH_INVALID_CREDENTIALS, "Reset token is invalid or expired");
-        }
+    public Map<String, Object> resetPassword(String email, String code, String newPassword) {
+        String normalizedEmail = normalizeEmail(email);
+        EmailVerificationCodeEntity verification = verifyCode(normalizedEmail, PURPOSE_PASSWORD_RESET, code,
+                ErrorCodes.PASSWORD_RESET_CODE_INVALID,
+                "Password reset code is invalid or expired",
+                "Password reset code is no longer available",
+                "Password reset code is invalid");
 
-        UserEntity user = requireActiveUser(token.getUserId());
+        UserEntity user = userMapper.selectOne(new LambdaQueryWrapper<UserEntity>()
+                .eq(UserEntity::getEmail, normalizedEmail));
+        if (user == null) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST.value(), ErrorCodes.PASSWORD_RESET_CODE_INVALID,
+                    "Password reset code is invalid or expired");
+        }
+        user = requireActiveUser(user.getUserId());
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         user.setUpdatedAt(LocalDateTime.now());
         userMapper.updateById(user);
 
-        token.setUsed(1);
-        token.setUpdatedAt(LocalDateTime.now());
-        passwordResetTokenMapper.updateById(token);
+        verification.setConsumed(1);
+        verification.setUpdatedAt(LocalDateTime.now());
+        emailVerificationCodeMapper.updateById(verification);
 
         for (AuthSessionEntity session : authSessionMapper.selectList(new LambdaQueryWrapper<AuthSessionEntity>()
                 .eq(AuthSessionEntity::getUserId, user.getUserId())
@@ -373,15 +350,77 @@ public class AuthServiceImpl implements AuthService {
         return profileVo;
     }
 
-    private EmailVerificationCodeEntity latestVerification(String normalizedEmail) {
+    private EmailVerificationCodeEntity latestVerification(String normalizedEmail, String purpose) {
         if (normalizedEmail == null || normalizedEmail.isBlank()) {
             return null;
         }
         return emailVerificationCodeMapper.selectOne(new LambdaQueryWrapper<EmailVerificationCodeEntity>()
                 .eq(EmailVerificationCodeEntity::getEmail, normalizedEmail)
-                .eq(EmailVerificationCodeEntity::getPurpose, "REGISTER")
+                .eq(EmailVerificationCodeEntity::getPurpose, purpose)
                 .orderByDesc(EmailVerificationCodeEntity::getCreatedAt)
                 .last("LIMIT 1"));
+    }
+
+    private LocalDateTime createAndSendVerificationCode(String email,
+                                                        String purpose,
+                                                        long expirationMinutes,
+                                                        long resendCooldownSeconds,
+                                                        String resendCooldownMessage,
+                                                        VerificationCodeSender sender) {
+        EmailVerificationCodeEntity latest = latestVerification(email, purpose);
+        if (latest != null && latest.getCreatedAt() != null
+                && latest.getCreatedAt().plusSeconds(resendCooldownSeconds).isAfter(LocalDateTime.now())) {
+            throw new BusinessException(HttpStatus.TOO_MANY_REQUESTS.value(), ErrorCodes.PRECONDITION_FAILED,
+                    resendCooldownMessage);
+        }
+
+        String code = String.format("%06d", new Random().nextInt(1_000_000));
+        LocalDateTime expiresAt = LocalDateTime.now().plusMinutes(expirationMinutes);
+
+        EmailVerificationCodeEntity entity = new EmailVerificationCodeEntity();
+        entity.setVerificationCodeId("EMV-" + UUID.randomUUID().toString().replace("-", "").substring(0, 10).toUpperCase(Locale.ROOT));
+        entity.setEmail(email);
+        entity.setPurpose(purpose);
+        entity.setCodeHash(passwordEncoder.encode(code));
+        entity.setExpiresAt(expiresAt);
+        entity.setVerifiedAt(null);
+        entity.setConsumed(0);
+        entity.setAttemptCount(0);
+        entity.setCreatedAt(LocalDateTime.now());
+        entity.setUpdatedAt(LocalDateTime.now());
+        emailVerificationCodeMapper.insert(entity);
+
+        sender.send(email, code, expiresAt);
+        return expiresAt;
+    }
+
+    private EmailVerificationCodeEntity verifyCode(String email,
+                                                   String purpose,
+                                                   String code,
+                                                   String errorCode,
+                                                   String expiredMessage,
+                                                   String consumedMessage,
+                                                   String mismatchMessage) {
+        EmailVerificationCodeEntity latest = latestVerification(email, purpose);
+        if (latest == null || latest.getExpiresAt() == null || latest.getExpiresAt().isBefore(LocalDateTime.now())) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST.value(), errorCode, expiredMessage);
+        }
+        if (latest.getConsumed() != null && latest.getConsumed() == 1) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST.value(), errorCode, consumedMessage);
+        }
+        if (!passwordEncoder.matches(String.valueOf(code).trim(), latest.getCodeHash())) {
+            latest.setAttemptCount((latest.getAttemptCount() == null ? 0 : latest.getAttemptCount()) + 1);
+            if (latest.getAttemptCount() >= 5) {
+                latest.setConsumed(1);
+            }
+            latest.setUpdatedAt(LocalDateTime.now());
+            emailVerificationCodeMapper.updateById(latest);
+            throw new BusinessException(HttpStatus.BAD_REQUEST.value(), errorCode, mismatchMessage);
+        }
+        latest.setVerifiedAt(LocalDateTime.now());
+        latest.setUpdatedAt(LocalDateTime.now());
+        emailVerificationCodeMapper.updateById(latest);
+        return latest;
     }
 
     private String normalizeEmail(String email) {
@@ -405,5 +444,10 @@ public class AuthServiceImpl implements AuthService {
         }
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    @FunctionalInterface
+    private interface VerificationCodeSender {
+        void send(String email, String code, LocalDateTime expiresAt);
     }
 }

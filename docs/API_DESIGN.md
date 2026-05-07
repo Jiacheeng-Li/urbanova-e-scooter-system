@@ -111,8 +111,8 @@ Failure:
 | POST | `/auth/login` | Public | Login and issue tokens |
 | POST | `/auth/refresh` | Public | Rotate refresh token and issue a new access token |
 | POST | `/auth/logout` | Bearer | Revoke current refresh session or all active sessions |
-| POST | `/auth/password/forgot` | Public | Create password reset token |
-| POST | `/auth/password/reset` | Public | Reset password with reset token |
+| POST | `/auth/password/forgot` | Public | Send password reset verification code to email |
+| POST | `/auth/password/reset` | Public | Reset password with email, verification code, and new password |
 | GET | `/users/me` | Bearer | Current user profile |
 | PATCH | `/users/me` | Bearer | Update current user profile |
 | GET | `/users/me/usage-summary` | Bearer | Booking and spend summary for current user |
@@ -320,15 +320,23 @@ Successful auth response:
 
 `POST /api/v1/auth/password/forgot`
 
-Current implementation is coursework-oriented:
-- it creates a reset token in `password_reset_tokens`
-- it returns the token in the response body instead of sending a real email
+```json
+{
+  "email": "user@example.com"
+}
+```
+
+Current implementation:
+- always returns an accepted response for security
+- when the email belongs to an existing account, it sends a real password reset code by email
+- password reset codes are stored in `email_verification_codes` with purpose `PASSWORD_RESET`
 
 `POST /api/v1/auth/password/reset`
 
 ```json
 {
-  "resetToken": "token-from-forgot-password",
+  "email": "user@example.com",
+  "code": "123456",
   "newPassword": "NewPassw0rd!"
 }
 ```
@@ -622,8 +630,8 @@ Current implemented values:
 Implemented security / reliability measures:
 - BCrypt password hashing
 - email verification codes stored in database and validated before registration
+- password reset codes stored in `email_verification_codes` and validated before password change
 - JWT access token + stored refresh session rotation
-- password reset tokens stored in database
 - manager audit logs in `audit_logs`
 - booking reservation uses conditional scooter status update
 - scooter admin updates increment `version`
