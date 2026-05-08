@@ -69,7 +69,7 @@ export type RootStackParamList = {
   Register: undefined;
   Main: undefined;
   RideDetail: { bookingId: string };
-  VehicleDetail: { vehicleId: string };
+  VehicleDetail: { vehicleId: string; mode?: 'reserve' | 'report' };
   Feedback: undefined;
   Notifications: undefined;
 };

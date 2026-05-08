@@ -1,26 +1,34 @@
-﻿// useVehicles.ts
-import { useQuery } from '@tanstack/react-query';
-import { LocationService, NearbyScooterPoint } from '@services/api';
+﻿import { useQuery } from '@tanstack/react-query';
+import { ScooterService, ScooterMapPoint } from '@services/api';
 import { getVehicleModelImage } from '@data/vehicleImages';
-import { useCurrentLocation } from './useCurrentLocation';
 
-export const useVehicles = () => {
-  const { location } = useCurrentLocation();
-  
+interface UseVehiclesOptions {
+  lat?: number | null;
+  lng?: number | null;
+  radiusKm?: number;
+}
+
+export const useVehicles = ({ lat, lng, radiusKm = 5 }: UseVehiclesOptions = {}) => {
+  const hasLocation = typeof lat === 'number' && typeof lng === 'number';
+
   const query = useQuery({
-    queryKey: ['nearby-vehicles', location?.latitude, location?.longitude],
+    queryKey: ['vehicles', hasLocation ? 'nearby' : 'map-points', lat, lng, radiusKm],
     queryFn: async () => {
-      if (!location) {
-        return [];
+      if (!hasLocation) {
+        return ScooterService.getMapPoints();
       }
-      const response = await LocationService.getNearbyScooters(
-        location.latitude,
-        location.longitude,
-        5  // 5公里半径
-      );
-      return response.data;
+      try {
+        const nearbyVehicles = await ScooterService.getNearby(lat, lng, radiusKm);
+        if (nearbyVehicles.length > 0) {
+          return nearbyVehicles;
+        }
+        console.warn('Nearby vehicle lookup returned no vehicles, falling back to map points.');
+        return ScooterService.getMapPoints();
+      } catch (error) {
+        console.warn('Nearby vehicle lookup failed, falling back to map points.', error);
+        return ScooterService.getMapPoints();
+      }
     },
-    enabled: !!location,  // 只有获取到位置后才请求
   });
 
   return {
@@ -29,8 +37,7 @@ export const useVehicles = () => {
   };
 };
 
-// 保留原有的转换函数
-export const mapPointToVehicle = (point: NearbyScooterPoint) => ({
+export const mapPointToVehicle = (point: ScooterMapPoint) => ({
   id: point.scooterId,
   name: `URBANOVA ${point.scooterId.slice(-4)}`,
   type: 'scooter' as const,
@@ -56,6 +63,7 @@ const mapStatus = (apiStatus: string): 'available' | 'low-battery' | 'reserved' 
     case 'reserved':
       return 'reserved';
     case 'in_use':
+    case 'in_ride':
     case 'in-ride':
       return 'in-ride';
     default:

@@ -494,8 +494,10 @@ const ProfileScreen = () => {
                 ))}
               </RNScrollView>
             </View>
-            <PrimaryButton label="Confirm" onPress={confirmBirthdayPicker} />
-            <PrimaryButton label="Close" onPress={() => setBirthdayPickerVisible(false)} style={{ marginTop: 10 }} />
+            <View style={styles.modalButtonRow}>
+              <PrimaryButton label="Close" onPress={() => setBirthdayPickerVisible(false)} style={styles.modalButtonHalf} />
+              <PrimaryButton label="Confirm" onPress={confirmBirthdayPicker} style={styles.modalButtonHalf} />
+            </View>
           </View>
         </View>
       </Modal>
@@ -646,6 +648,14 @@ const styles = StyleSheet.create({
   },
   modalSectionLabel: {
     marginTop: 12,
+  },
+  modalButtonRow: {
+    flexDirection: 'row',
+    marginTop: 12,
+  },
+  modalButtonHalf: {
+    flex: 1,
+    marginHorizontal: 4,
   },
   sectionLabel: {
     color: colors.textSecondary,

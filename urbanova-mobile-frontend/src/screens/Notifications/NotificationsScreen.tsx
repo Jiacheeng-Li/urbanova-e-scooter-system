@@ -82,6 +82,7 @@ const NotificationsScreen = () => {
 
 const styles = StyleSheet.create({
   title: {
+    marginTop: 12,
     fontSize: 28,
     fontWeight: '800',
     color: colors.textPrimary,
@@ -127,6 +128,10 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     fontSize: 11,
     fontWeight: '800',
+    overflow: 'hidden',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+    lineHeight: 14,
   },
   cardTitle: {
     color: colors.textPrimary,

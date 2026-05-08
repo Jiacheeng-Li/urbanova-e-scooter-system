@@ -39,9 +39,9 @@ const TripsScreen = () => {
       <Text style={styles.title}>Ride history</Text>
       <Text style={styles.subtitle}>Open any trip to view booking details, timeline, and status updates.</Text>
       <View style={styles.statsRow}>
-        <StatCard label="Total bookings" value={stats.totalTrips} caption="All statuses" />
-        <StatCard label="Completed" value={stats.completed} caption="Finished rides" />
-        <StatCard label="Spend" value={stats.spend} caption="Completed rides" />
+        <StatCard label="Bookings" value={stats.totalTrips} caption="All rides" compact />
+        <StatCard label="Completed" value={stats.completed} caption="Finished" compact />
+        <StatCard label="Spend" value={stats.spend} caption="Paid rides" compact />
       </View>
 
       <View style={styles.tabRow}>

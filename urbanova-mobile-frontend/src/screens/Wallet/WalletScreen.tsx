@@ -382,30 +382,13 @@ const WalletScreen = () => {
           ) : (
             passes.map((pass) => {
               const quote = quoteQuery.data?.[pass.id];
-              const summary = getQuoteDiscountSummary(quote);
               return (
-                <View key={pass.id} style={styles.passQuoteWrap}>
-                  <PassCard
-                    pass={{ ...pass, quote: quote || undefined }}
-                    onSelect={handleSelectPass}
-                    isSelected={selectedPassId === pass.id}
-                  />
-                  {quote ? (
-                    <View style={styles.passQuoteFooter}>
-                      {summary ? (
-                        <>
-                          <Text style={styles.originalPrice}>{formatCurrency(Number(quote.basePrice || pass.price))}</Text>
-                          <Text style={styles.discountedPrice}>{formatCurrency(Number(quote.finalPrice || pass.price))}</Text>
-                          <Text style={styles.discountCopy}>
-                            {summary.percent}% off - {summary.label}
-                          </Text>
-                        </>
-                      ) : (
-                        <Text style={styles.discountCopy}>No discount on this option right now.</Text>
-                      )}
-                    </View>
-                  ) : null}
-                </View>
+                <PassCard
+                  key={pass.id}
+                  pass={{ ...pass, quote: quote || undefined }}
+                  onSelect={handleSelectPass}
+                  isSelected={selectedPassId === pass.id}
+                />
               );
             })
           )}
@@ -503,35 +486,6 @@ const styles = StyleSheet.create({
   promoSubtitle: {
     color: colors.textSecondary,
     marginTop: 6,
-    fontSize: 12,
-  },
-  passQuoteWrap: {
-    marginBottom: 14,
-  },
-  passQuoteFooter: {
-    marginTop: -10,
-    marginBottom: 8,
-    borderBottomLeftRadius: radii.lg,
-    borderBottomRightRadius: radii.lg,
-    padding: 12,
-    backgroundColor: 'rgba(131,111,255,0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(131,111,255,0.2)',
-  },
-  originalPrice: {
-    color: colors.textMuted,
-    textDecorationLine: 'line-through',
-    fontSize: 12,
-  },
-  discountedPrice: {
-    color: colors.lime,
-    fontWeight: '800',
-    fontSize: 18,
-    marginTop: 2,
-  },
-  discountCopy: {
-    color: colors.textSecondary,
-    marginTop: 4,
     fontSize: 12,
   },
   scrollArea: {

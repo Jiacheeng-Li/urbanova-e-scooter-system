@@ -12,7 +12,7 @@ interface Props {
 const ScreenContainer: React.FC<Props> = ({ children, scrollable = false, contentStyle }) => {
   if (scrollable) {
     return (
-      <SafeAreaView style={styles.safe}>
+      <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
         <ScrollView contentContainerStyle={[styles.content, contentStyle]} keyboardShouldPersistTaps="handled">
           {children}
         </ScrollView>
@@ -21,7 +21,7 @@ const ScreenContainer: React.FC<Props> = ({ children, scrollable = false, conten
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
       <View style={[styles.content, contentStyle]}>{children}</View>
     </SafeAreaView>
   );

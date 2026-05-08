@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import MapView, { Marker } from 'react-native-maps';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import MapView from 'react-native-maps';
+import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Vehicle } from '@models/index';
 import VehicleMarker from './VehicleMarker';
 import { colors, radii } from '@theme/index';
@@ -18,12 +18,75 @@ interface Props {
 }
 
 const FleetMap: React.FC<Props> = ({ vehicles, initialRegion, selectedVehicleId, onSelectVehicle }) => {
+  const mapRef = useRef<MapView | null>(null);
+  const lastCenteredRegion = useRef('');
   const [isReady, setIsReady] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
+  const useStaticFallback = Platform.OS === 'android' && !__DEV__;
+
+  useEffect(() => {
+    if (!isReady) {
+      return;
+    }
+
+    const regionKey = [
+      initialRegion.latitude.toFixed(6),
+      initialRegion.longitude.toFixed(6),
+      initialRegion.latitudeDelta.toFixed(4),
+      initialRegion.longitudeDelta.toFixed(4),
+    ].join(':');
+
+    if (lastCenteredRegion.current === regionKey) {
+      return;
+    }
+
+    lastCenteredRegion.current = regionKey;
+    mapRef.current?.animateToRegion(initialRegion, 450);
+  }, [
+    initialRegion.latitude,
+    initialRegion.longitude,
+    initialRegion.latitudeDelta,
+    initialRegion.longitudeDelta,
+    isReady,
+  ]);
+
+  if (useStaticFallback) {
+    return (
+      <View style={[styles.container, styles.staticMap]}>
+        <View style={styles.gridCircleLarge} />
+        <View style={styles.gridCircleSmall} />
+        <Text style={styles.staticTitle}>URBANOVA Fleet Map</Text>
+        <Text style={styles.staticSubtitle}>Showing live vehicle positions from the backend.</Text>
+        {vehicles.slice(0, 8).map((vehicle, index) => (
+          <Pressable
+            key={vehicle.id}
+            style={[
+              styles.staticMarker,
+              {
+                left: `${18 + ((index * 19) % 64)}%`,
+                top: `${26 + ((index * 17) % 38)}%`,
+              },
+              selectedVehicleId === vehicle.id && styles.staticMarkerSelected,
+            ]}
+            onPress={() => onSelectVehicle?.(vehicle.id)}
+          >
+            <Text style={styles.staticMarkerText}>{vehicle.battery}%</Text>
+          </Pressable>
+        ))}
+        {vehicles.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyTitle}>Looking for URBANOVA vehicles...</Text>
+            <Text style={styles.emptySubtitle}>Vehicle data will appear once the backend responds.</Text>
+          </View>
+        ) : null}
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
       <MapView
+        ref={mapRef}
         style={styles.map}
         initialRegion={initialRegion}
         showsUserLocation
@@ -144,6 +207,65 @@ const styles = StyleSheet.create({
     marginTop: 6,
     fontSize: 13,
     lineHeight: 18,
+  },
+  staticMap: {
+    backgroundColor: '#101626',
+    overflow: 'hidden',
+  },
+  gridCircleLarge: {
+    position: 'absolute',
+    width: 420,
+    height: 420,
+    borderRadius: 210,
+    borderWidth: 1,
+    borderColor: 'rgba(131,111,255,0.18)',
+    top: 70,
+    left: -80,
+  },
+  gridCircleSmall: {
+    position: 'absolute',
+    width: 260,
+    height: 260,
+    borderRadius: 130,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    top: 170,
+    right: -60,
+  },
+  staticTitle: {
+    position: 'absolute',
+    top: 170,
+    left: 24,
+    color: colors.lime,
+    fontSize: 20,
+    fontWeight: '900',
+  },
+  staticSubtitle: {
+    position: 'absolute',
+    top: 198,
+    left: 24,
+    right: 24,
+    color: colors.textSecondary,
+  },
+  staticMarker: {
+    position: 'absolute',
+    minWidth: 46,
+    alignItems: 'center',
+    borderRadius: 18,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderWidth: 2,
+    borderColor: colors.success,
+    backgroundColor: colors.ink,
+  },
+  staticMarkerSelected: {
+    borderColor: colors.lime,
+    backgroundColor: 'rgba(131,111,255,0.45)',
+  },
+  staticMarkerText: {
+    color: colors.textPrimary,
+    fontWeight: '800',
+    fontSize: 12,
   },
 });
 

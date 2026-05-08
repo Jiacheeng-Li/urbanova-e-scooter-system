@@ -14,11 +14,16 @@
       "resizeMode": "cover",
       "backgroundColor": "#0a0f0a"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.cinnabar.urbanova",
       "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true
+        },
         "NSLocationWhenInUseUsageDescription": "URBANOVA uses your location to show nearby vehicles and guide you through rides.",
         "NSLocationAlwaysUsageDescription": "Location access lets URBANOVA keep your ride connected even when the app is in the background.",
         "NSCameraUsageDescription": "URBANOVA uses your camera to scan scooter QR codes and attach issue photos.",
@@ -31,13 +36,20 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0a0f0a"
       },
+      "usesCleartextTraffic": true,
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": true,
       "permissions": [
-        "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION",
-        "CAMERA",
-        "READ_MEDIA_IMAGES"
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.CAMERA",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
       ],
       "userInterfaceStyle": "automatic",
       "statusBar": {
@@ -46,6 +58,7 @@
       }
     },
     "plugins": [
+      "./plugins/withAndroidNetworkSecurity",
       [
         "expo-location",
         {
@@ -68,9 +81,12 @@
       ]
     ],
     "extra": {
-      "apiBaseUrl": "http://192.168.72.96:8080",
+      "apiBaseUrl": "http://47.109.73.119:8080",
       "supportEmail": "support@urbanova.app",
-      "enableLabs": true
+      "enableLabs": true,
+      "eas": {
+        "projectId": "bba7ae47-c9ce-4df8-b5a3-75f87b85fb39"
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png"

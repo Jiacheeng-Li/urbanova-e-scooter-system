@@ -1,19 +1,19 @@
 import React, { useEffect, useRef } from 'react';
 import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useNavigation } from '@react-navigation/native';
-import { NavigationProp } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
 
 import { DiscountService } from '@services/api';
 import { useAuthStore } from '@store/useAuthStore';
-import { MainTabParamList } from '@models/index';
 import { getEligibilityHeadline, isUserFacingPromotionType } from '@utils/promotions';
 
 const PROMOTION_PROMPT_PREFIX = 'urbanova:promotion-prompt:';
 
-const PromotionGate = () => {
-  const navigation = useNavigation<NavigationProp<MainTabParamList>>();
+interface PromotionGateProps {
+  onOpenProfile?: () => void;
+}
+
+const PromotionGate: React.FC<PromotionGateProps> = ({ onOpenProfile }) => {
   const user = useAuthStore((state) => state.user);
   const inFlight = useRef(false);
 
@@ -34,10 +34,10 @@ const PromotionGate = () => {
     inFlight.current = true;
     Alert.alert('Complete your profile', 'Add your birth date to unlock youth or senior URBANOVA discounts.', [
       { text: 'Later', style: 'cancel' },
-      { text: 'Go to Profile', onPress: () => navigation.navigate('Profile') },
+      { text: 'Go to Profile', onPress: onOpenProfile },
     ]);
     inFlight.current = false;
-  }, [navigation, user?.birthDate, user?.userId]);
+  }, [onOpenProfile, user?.birthDate, user?.userId]);
 
   useEffect(() => {
     const eligibility = eligibilityQuery.data;
