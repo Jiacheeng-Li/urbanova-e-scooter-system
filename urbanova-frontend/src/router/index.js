@@ -4,7 +4,7 @@ import { ElMessageBox } from 'element-plus'
 const routes = [
   {
     path: '/',
-    redirect: '/hire-options'
+    redirect: '/Urbanova'
   },
   {
     path: '/login',
@@ -19,22 +19,10 @@ const routes = [
     meta: { title: 'Register' }
   },
   {
-    path: '/hire-options',
-    name: 'HireOptions',
-    component: () => import('../views/HireOptions.vue'),
-    meta: { title: 'Hire Options', requiresAuth: false }
-  },
-  {
-    path: '/booking',
-    name: 'Booking',
-    component: () => import('../views/Booking.vue'),
-    meta: { title: 'Book Scooter', requiresAuth: true }
-  },
-  {
-    path: '/my-bookings',
-    name: 'MyBookings',
-    component: () => import('../views/MyBookings.vue'),
-    meta: { title: 'My Bookings', requiresAuth: true }
+    path: '/urbanova',
+    name: 'Urbanova',
+    component: () => import('../views/Urbanova.vue'),
+    meta: { title: 'Urbanova' }
   },
   {
     path: '/admin',
@@ -98,7 +86,7 @@ router.beforeEach(async (to, from, next) => {
 
   // 已登录用户访问登录页，跳转到首页
   if (to.path === '/login' && token) {
-    next({ path: '/hire-options' })
+    next({ path: '/Urbanova' })
     return
   }
 
@@ -117,7 +105,7 @@ router.beforeEach(async (to, from, next) => {
       next({ name: 'Login', query: { redirect: to.fullPath } })
     } catch {
       // 用户点击取消，跳转到首页
-      next({ path: '/hire-options' })
+      next({ path: '/Urbanova' })
     }
   } else {
     next()

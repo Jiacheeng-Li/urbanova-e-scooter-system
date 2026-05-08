@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import MapView, { Marker } from 'react-native-maps';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { Vehicle } from '@models/index';
+import VehicleMarker from './VehicleMarker';
 import { colors, radii } from '@theme/index';
 
 interface Props {
@@ -37,18 +38,14 @@ const FleetMap: React.FC<Props> = ({ vehicles, initialRegion, selectedVehicleId,
           setMapError(event?.nativeEvent?.message || 'Unable to render map')
         }
       >
-        {vehicles.map((vehicle) => (
-          <Marker
-            key={vehicle.id}
-            coordinate={{ latitude: vehicle.lat, longitude: vehicle.lng }}
-            title={vehicle.name}
-            onPress={() => onSelectVehicle?.(vehicle.id)}
-          >
-            <View style={[styles.marker, selectedVehicleId === vehicle.id && styles.markerSelected]}>
-              <Text style={styles.markerText}>{vehicle.battery}%</Text>
-            </View>
-          </Marker>
-        ))}
+      {vehicles.map((vehicle) => (
+        <VehicleMarker
+          key={vehicle.id}
+          vehicle={vehicle}
+          isSelected={selectedVehicleId === vehicle.id}
+          onPress={onSelectVehicle || (() => {})}
+        />
+      ))}
       </MapView>
       {!isReady && !mapError && (
         <View style={styles.statusOverlay}>

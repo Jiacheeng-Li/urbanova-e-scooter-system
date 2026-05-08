@@ -378,6 +378,57 @@ public class ScooterServiceImpl implements ScooterService {
         processChargingCompletion(now);
     }
 
+    // ScooterServiceImpl.java
+    @Override
+    public List<ScooterEntity> findNearbyScooters(BigDecimal minLat, BigDecimal maxLat,
+                                                  BigDecimal minLng, BigDecimal maxLng,
+                                                  BigDecimal centerLat, BigDecimal centerLng,
+                                                  Double radiusKm) {
+        // 直接用 MyBatis-Plus 查询经纬度范围内的车辆
+        List<ScooterEntity> scooters = scooterMapper.selectList(
+                new LambdaQueryWrapper<ScooterEntity>()
+                        .isNotNull(ScooterEntity::getLat)
+                        .isNotNull(ScooterEntity::getLng)
+                        .ge(ScooterEntity::getLat, minLat)
+                        .le(ScooterEntity::getLat, maxLat)
+                        .ge(ScooterEntity::getLng, minLng)
+                        .le(ScooterEntity::getLng, maxLng)
+                        // 只查询可用的车辆（排除故障、维护等）
+                        .in(ScooterEntity::getStatus, List.of(
+                                DomainConstants.ScooterStatus.AVAILABLE,
+                                DomainConstants.ScooterStatus.LOW_BATTERY,
+                                DomainConstants.ScooterStatus.RESERVED
+                        ))
+        );
+
+        // 精确过滤在半径内的车辆（哈弗辛公式计算距离）
+        double centerLatD = centerLat.doubleValue();
+        double centerLngD = centerLng.doubleValue();
+
+        return scooters.stream()
+                .filter(s -> {
+                    if (s.getLat() == null || s.getLng() == null) return false;
+                    double distance = calculateDistance(
+                            centerLatD, centerLngD,
+                            s.getLat().doubleValue(), s.getLng().doubleValue()
+                    );
+                    return distance <= radiusKm;
+                })
+                .collect(Collectors.toList());
+    }
+
+    // 计算两点间距离（km，哈弗辛公式）
+    private double calculateDistance(double lat1, double lng1, double lat2, double lng2) {
+        double R = 6371; // 地球半径 km
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLng = Math.toRadians(lng2 - lng1);
+        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) *
+                        Math.sin(dLng / 2) * Math.sin(dLng / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
+    }
+
     private void processInUseDrain(LocalDateTime now) {
         List<ScooterEntity> scooters = scooterMapper.selectList(new LambdaQueryWrapper<ScooterEntity>()
                 .eq(ScooterEntity::getStatus, DomainConstants.ScooterStatus.IN_USE));
