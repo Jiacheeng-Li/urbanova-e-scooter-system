@@ -100,6 +100,7 @@ export interface RegisterRequest {
   password: string;
   fullName: string;
   phone?: string;
+  birthDate?: string;
 }
 
 export interface UserProfileData {
@@ -110,7 +111,11 @@ export interface UserProfileData {
   role: string;
   discountCategory: string | null;
   accountStatus: string;
+  birthDate?: string | null;
+  age?: number | null;
+  ageGroup?: string | null;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface AuthPayload {
@@ -129,13 +134,31 @@ export interface UsageSummaryData {
   hoursUsed: number;
   totalSpent: number;
   hoursLast7Days: number;
-  discountEligibility: {
-    discountCategory: string;
-    appliedRules: Array<{ type: string; percentage: number }>;
-  };
+  discountEligibility: DiscountEligibility;
+}
+
+export interface EmailVerificationResult {
+  email?: string;
+  sent?: boolean;
+  verified?: boolean;
+  expiresAt?: string;
+  message?: string;
 }
 
 export const AuthService = {
+  sendEmailVerification: async (email: string): Promise<EmailVerificationResult> => {
+    const response = await api.post<ApiResponse<EmailVerificationResult>>('/api/v1/auth/email-verification/send', {
+      email,
+    });
+    return unwrap(response);
+  },
+  verifyEmailVerification: async (email: string, code: string): Promise<EmailVerificationResult> => {
+    const response = await api.post<ApiResponse<EmailVerificationResult>>('/api/v1/auth/email-verification/verify', {
+      email,
+      code,
+    });
+    return unwrap(response);
+  },
   login: async (data: LoginRequest): Promise<AuthPayload> => {
     const response = await api.post<ApiResponse<AuthPayload>>('/api/v1/auth/login', data);
     const payload = unwrap(response);
@@ -165,15 +188,16 @@ export const AuthService = {
       await clearSession();
     }
   },
-  forgotPassword: async (email: string): Promise<{ resetToken: string; expiresAt: string }> => {
-    const response = await api.post<ApiResponse<{ resetToken: string; expiresAt: string }>>('/api/v1/auth/password/forgot', {
+  forgotPassword: async (email: string): Promise<{ email?: string; sent?: boolean; expiresAt?: string; message?: string }> => {
+    const response = await api.post<ApiResponse<{ email?: string; sent?: boolean; expiresAt?: string; message?: string }>>('/api/v1/auth/password/forgot', {
       email,
     });
     return unwrap(response);
   },
-  resetPassword: async (resetToken: string, newPassword: string) => {
+  resetPassword: async (email: string, code: string, newPassword: string) => {
     const response = await api.post<ApiResponse<{ resetAt: string }>>('/api/v1/auth/password/reset', {
-      resetToken,
+      email,
+      code,
       newPassword,
     });
     return unwrap(response);
@@ -182,7 +206,9 @@ export const AuthService = {
     const response = await api.get<ApiResponse<UserProfileData>>('/api/v1/users/me');
     return unwrap(response);
   },
-  updateProfile: async (payload: Partial<Pick<UserProfileData, 'fullName' | 'phone' | 'discountCategory'>>) => {
+  updateProfile: async (
+    payload: Partial<Pick<UserProfileData, 'fullName' | 'phone' | 'discountCategory' | 'birthDate'>>
+  ): Promise<UserProfileData> => {
     const response = await api.patch<ApiResponse<UserProfileData>>('/api/v1/users/me', payload);
     return unwrap(response);
   },
@@ -260,6 +286,29 @@ export interface ScooterMapPoint {
   zone: string | null;
 }
 
+export interface UserLocationPayload {
+  lat: number;
+  lng: number;
+  source?: 'CLIENT_GPS' | 'MANUAL' | string;
+}
+
+export interface MapViewData {
+  userLocation?: UserLocationPayload & { updatedAt?: string };
+  scooters?: ScooterMapPoint[];
+  [key: string]: unknown;
+}
+
+export const UserLocationService = {
+  updateLocation: async (payload: UserLocationPayload): Promise<unknown> => {
+    const response = await api.post<ApiResponse<unknown>>('/api/v1/users/me/location', payload);
+    return unwrap(response);
+  },
+  getMapView: async (): Promise<MapViewData> => {
+    const response = await api.get<ApiResponse<MapViewData>>('/api/v1/users/me/map-view');
+    return unwrap(response);
+  },
+};
+
 export interface ScooterAvailabilitySummary {
   available: number;
   reserved: number;
@@ -268,9 +317,45 @@ export interface ScooterAvailabilitySummary {
   maintenance: number;
 }
 
+export interface ScooterDetail {
+  scooterId: string;
+  typeCode?: string;
+  typeDisplayName?: string;
+  typeImageUrl?: string;
+  status: string;
+  batteryPercent?: number;
+  lat?: number;
+  lng?: number;
+  zone?: string | null;
+  [key: string]: unknown;
+}
+
+export interface ScooterQrMetadata {
+  scooterId?: string;
+  qrCodeId?: string;
+  payload?: string;
+  imageUrl?: string;
+  [key: string]: unknown;
+}
+
+export interface QrResolveResult {
+  payload?: string;
+  qrCodeId?: string;
+  canBook?: boolean;
+  reason?: string | null;
+  scooter?: ScooterDetail;
+  scooterId?: string;
+  status?: string;
+  [key: string]: unknown;
+}
+
 export const ScooterService = {
   getMapPoints: async (): Promise<ScooterMapPoint[]> => {
     const response = await api.get<ApiResponse<ScooterMapPoint[]>>('/api/v1/scooters/map-points');
+    return unwrap(response);
+  },
+  getDetail: async (scooterId: string): Promise<ScooterDetail> => {
+    const response = await api.get<ApiResponse<ScooterDetail>>(`/api/v1/scooters/${scooterId}`);
     return unwrap(response);
   },
   getByStatus: async (status: string): Promise<{ status: string; scooterIds: string[] }> => {
@@ -281,6 +366,18 @@ export const ScooterService = {
   },
   getAvailability: async (): Promise<ScooterAvailabilitySummary> => {
     const response = await api.get<ApiResponse<ScooterAvailabilitySummary>>('/api/v1/scooters/availability');
+    return unwrap(response);
+  },
+  getQrMetadata: async (scooterId: string): Promise<ScooterQrMetadata> => {
+    const response = await api.get<ApiResponse<ScooterQrMetadata>>(`/api/v1/scooters/${scooterId}/qr`);
+    return unwrap(response);
+  },
+  getByQrCodeId: async (qrCodeId: string): Promise<ScooterDetail> => {
+    const response = await api.get<ApiResponse<ScooterDetail>>(`/api/v1/scooters/qr/${qrCodeId}`);
+    return unwrap(response);
+  },
+  resolveQrPayload: async (payload: string): Promise<QrResolveResult> => {
+    const response = await api.post<ApiResponse<QrResolveResult>>('/api/v1/scooters/qr/resolve', { payload });
     return unwrap(response);
   },
 };
@@ -340,14 +437,22 @@ export interface BookingDetail {
 export interface BookingListItem {
   bookingId: string;
   bookingRef: string;
+  customerType?: string;
   scooterId: string;
   hireOptionId: string;
   status: string;
   startAt: string | null;
   endAt: string | null;
+  createdAt?: string;
   priceFinal: number;
   paymentStatus: string;
   updatedAt: string;
+}
+
+export interface CancelBookingResult {
+  bookingId: string;
+  status: string;
+  cancelledAt: string;
 }
 
 export interface BookingTimelineEvent {
@@ -402,8 +507,9 @@ export const BookingService = {
     >(`/api/v1/bookings/${bookingId}/extend`, payload);
     return unwrap(response);
   },
-  cancel: async (bookingId: string, reason?: string): Promise<void> => {
-    await api.post(`/api/v1/bookings/${bookingId}/cancel`, { reason });
+  cancel: async (bookingId: string, reason?: string): Promise<CancelBookingResult> => {
+    const response = await api.post<ApiResponse<CancelBookingResult>>(`/api/v1/bookings/${bookingId}/cancel`, { reason });
+    return unwrap(response);
   },
   timeline: async (bookingId: string): Promise<BookingTimelineEvent[]> => {
     const response = await api.get<ApiResponse<BookingTimelineEvent[]>>(`/api/v1/bookings/${bookingId}/timeline`);
@@ -509,11 +615,15 @@ export interface IssueRecord {
   reporterUserId: string;
   bookingId: string | null;
   scooterId: string | null;
+  issueType?: 'FAULT_REPORT' | 'COMPLAINT' | 'OTHER';
   title: string;
   description: string;
-  priority: 'LOW' | 'HIGH' | 'CRITICAL';
+  priority: 'MEDIUM' | 'HIGH' | 'URGENT' | 'LOW' | 'CRITICAL';
   status: string;
   managerFeedback: string | null;
+  photoCount?: number;
+  comments?: Array<{ commentId: string; message: string; authorRole?: string; createdAt: string }>;
+  photos?: Array<{ photoId: string; originalFileName: string; contentType: string; downloadPath: string; createdAt: string }>;
   createdAt: string;
   updatedAt: string;
 }
@@ -521,9 +631,10 @@ export interface IssueRecord {
 export interface CreateIssueRequest {
   bookingId?: string;
   scooterId?: string;
+  issueType?: 'FAULT_REPORT' | 'COMPLAINT' | 'OTHER';
   title: string;
   description: string;
-  priority?: 'LOW' | 'HIGH' | 'CRITICAL';
+  priority?: 'MEDIUM' | 'HIGH' | 'URGENT';
 }
 
 export const IssueService = {
@@ -534,6 +645,28 @@ export const IssueService = {
   listMine: async (status?: string): Promise<IssueRecord[]> => {
     const response = await api.get<ApiResponse<IssueRecord[]>>('/api/v1/issues', {
       params: status ? { status } : undefined,
+    });
+    return unwrap(response);
+  },
+  getDetail: async (issueId: string): Promise<IssueRecord> => {
+    const response = await api.get<ApiResponse<IssueRecord>>(`/api/v1/issues/${issueId}`);
+    return unwrap(response);
+  },
+  addComment: async (issueId: string, message: string): Promise<IssueRecord> => {
+    const response = await api.post<ApiResponse<IssueRecord>>(`/api/v1/issues/${issueId}/comments`, { message });
+    return unwrap(response);
+  },
+  uploadPhotos: async (issueId: string, photos: Array<{ uri: string; name?: string; type?: string }>): Promise<unknown> => {
+    const formData = new FormData();
+    photos.slice(0, 5).forEach((photo, index) => {
+      formData.append('files', {
+        uri: photo.uri,
+        name: photo.name || `issue-photo-${index + 1}.jpg`,
+        type: photo.type || 'image/jpeg',
+      } as any);
+    });
+    const response = await api.post<ApiResponse<unknown>>(`/api/v1/issues/${issueId}/photos`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
     });
     return unwrap(response);
   },
@@ -549,9 +682,62 @@ export interface HireOption {
   active: boolean;
 }
 
+export interface AppliedDiscount {
+  type: string;
+  amount: number;
+}
+
+export interface PriceQuote {
+  basePrice: number;
+  appliedDiscounts: AppliedDiscount[];
+  finalPrice: number;
+  currency: string;
+}
+
+export interface PromotionPolicy {
+  promotionPolicyId: string;
+  policyCode: string;
+  name: string;
+  category: string;
+  description?: string | null;
+  percentage: number;
+  minAge?: number | null;
+  maxAge?: number | null;
+  minCompletedBookings?: number | null;
+  maxCompletedBookings?: number | null;
+  holidayCampaign?: boolean;
+  stackable?: boolean;
+  priority?: number;
+  active?: boolean;
+  activeNow?: boolean;
+}
+
+export interface DiscountEligibility {
+  userId?: string;
+  birthDate?: string | null;
+  age?: number | null;
+  ageGroup?: string | null;
+  completedBookingCount?: number;
+  hoursLast7Days?: number;
+  eligibleTypes?: string[];
+  estimatedPercentage?: number;
+  activePolicies?: PromotionPolicy[];
+}
+
 export const HireOptionService = {
   list: async (): Promise<HireOption[]> => {
     const response = await api.get<ApiResponse<HireOption[]>>('/api/v1/hire-options');
+    return unwrap(response);
+  },
+  quote: async (payload: { scooterId?: string; hireOptionCode: string }): Promise<PriceQuote> => {
+    const response = await api.post<ApiResponse<PriceQuote>>('/api/v1/pricing/quotes', payload);
+    return unwrap(response);
+  },
+};
+
+export const DiscountService = {
+  getEligibility: async (): Promise<DiscountEligibility> => {
+    const response = await api.get<ApiResponse<DiscountEligibility>>('/api/v1/discounts/eligibility');
     return unwrap(response);
   },
 };

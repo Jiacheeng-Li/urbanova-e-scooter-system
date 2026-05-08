@@ -8,7 +8,9 @@ import {
   Text,
   TextInput,
   View,
+  Image,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { RootStackParamList } from '@models/index';
@@ -28,6 +30,7 @@ import { colors, radii } from '@theme/index';
 import { formatCurrency, formatDate } from '@utils/format';
 import { validateReturnLocation } from '@utils/geo';
 import { maskCard } from '@utils/security';
+import ScooterFaultDiagram, { FaultPart } from '@components/ScooterFaultDiagram';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'RideDetail'>;
 
@@ -37,6 +40,15 @@ const statusTone: Record<string, string> = {
   ACTIVE: '#4DABF7',
   COMPLETED: '#9CA3AF',
   CANCELLED: '#F45B69',
+};
+
+const getApiErrorMessage = (error: any, fallback: string) => {
+  const message = error?.response?.data?.error?.message || error?.message || fallback;
+  const code = error?.response?.data?.error?.code;
+  if (/availability|overlap|conflict|reserved|time|extend|booking/i.test(message)) {
+    return `${message}\n\nThis usually means the selected time conflicts with another booking or the vehicle is not available for that window.`;
+  }
+  return code ? `${message} (${code})` : message;
 };
 
 const RideDetailScreen: React.FC<Props> = ({ route }) => {
@@ -52,7 +64,10 @@ const RideDetailScreen: React.FC<Props> = ({ route }) => {
   const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState('');
   const [faultTitle, setFaultTitle] = useState('Vehicle damage detected at return');
   const [faultDescription, setFaultDescription] = useState('');
-  const [faultPriority, setFaultPriority] = useState<'LOW' | 'HIGH' | 'CRITICAL'>('HIGH');
+  const [faultPart, setFaultPart] = useState<FaultPart>('brake');
+  const [faultPhotos, setFaultPhotos] = useState<Array<{ uri: string; name?: string; type?: string }>>([]);
+  const [plannedStartInput, setPlannedStartInput] = useState('');
+  const [cancelReason, setCancelReason] = useState('Plans changed');
 
   const bookingQuery = useQuery({
     queryKey: ['booking-detail', bookingId],
@@ -101,6 +116,12 @@ const RideDetailScreen: React.FC<Props> = ({ route }) => {
   }, [bookingQuery.data?.hireOptionId]);
 
   useEffect(() => {
+    if (bookingQuery.data?.startAt) {
+      setPlannedStartInput((current) => current || bookingQuery.data?.startAt || '');
+    }
+  }, [bookingQuery.data?.startAt]);
+
+  useEffect(() => {
     if (!extendOptionCode && passes.length > 0) {
       setExtendOptionCode(passes[0].name);
     }
@@ -129,13 +150,28 @@ const RideDetailScreen: React.FC<Props> = ({ route }) => {
   };
 
   const updateBookingMutation = useMutation({
-    mutationFn: (hireOptionId: string) => BookingService.update(bookingId, { hireOptionId }),
+    mutationFn: () =>
+      BookingService.update(bookingId, {
+        hireOptionId: selectedHireOptionId || undefined,
+        plannedStartAt: plannedStartInput.trim() || undefined,
+      }),
     onSuccess: async () => {
       Alert.alert('Booking updated', 'Booking details were refreshed and payment status was reset as expected.');
       await refreshBookingRelatedData();
     },
     onError: (error: any) => {
-      Alert.alert('Update failed', error?.response?.data?.error?.message || 'Unable to update booking.');
+      Alert.alert('Update failed', getApiErrorMessage(error, 'Unable to update booking.'));
+    },
+  });
+
+  const cancelBookingMutation = useMutation({
+    mutationFn: () => BookingService.cancel(bookingId, cancelReason.trim() || 'Cancelled from mobile app'),
+    onSuccess: async () => {
+      Alert.alert('Booking cancelled', 'Your booking status was updated.');
+      await refreshBookingRelatedData();
+    },
+    onError: (error: any) => {
+      Alert.alert('Cancel failed', getApiErrorMessage(error, 'Unable to cancel booking.'));
     },
   });
 
@@ -146,7 +182,7 @@ const RideDetailScreen: React.FC<Props> = ({ route }) => {
       await refreshBookingRelatedData();
     },
     onError: (error: any) => {
-      Alert.alert('Cannot start ride', error?.response?.data?.error?.message || 'Unable to start this booking.');
+      Alert.alert('Cannot start ride', getApiErrorMessage(error, 'Unable to start this booking.'));
     },
   });
 
@@ -157,7 +193,7 @@ const RideDetailScreen: React.FC<Props> = ({ route }) => {
       await refreshBookingRelatedData();
     },
     onError: (error: any) => {
-      Alert.alert('Cannot end ride', error?.response?.data?.error?.message || 'Unable to end this booking.');
+      Alert.alert('Cannot end ride', getApiErrorMessage(error, 'Unable to end this booking.'));
     },
   });
 
@@ -168,7 +204,7 @@ const RideDetailScreen: React.FC<Props> = ({ route }) => {
       await refreshBookingRelatedData();
     },
     onError: (error: any) => {
-      Alert.alert('Extension failed', error?.response?.data?.error?.message || 'Unable to extend this booking.');
+      Alert.alert('Extension failed', getApiErrorMessage(error, 'Unable to extend this booking.'));
     },
   });
 
@@ -204,13 +240,22 @@ const RideDetailScreen: React.FC<Props> = ({ route }) => {
       IssueService.create({
         bookingId,
         scooterId: bookingQuery.data?.scooterId,
+        issueType: 'FAULT_REPORT',
         title: faultTitle.trim(),
-        description: faultDescription.trim(),
-        priority: faultPriority,
+        description: `[${faultPart.toUpperCase()}] ${faultDescription.trim()}`,
       }),
-    onSuccess: () => {
+    onSuccess: async (issue) => {
+      if (faultPhotos.length > 0) {
+        await IssueService.uploadPhotos(issue.issueId, faultPhotos);
+      }
       setFaultDescription('');
-      Alert.alert('Issue submitted', 'Return fault report was submitted for follow-up.');
+      setFaultPhotos([]);
+      Alert.alert(
+        'Issue submitted',
+        faultPhotos.length > 0
+          ? 'Fault report and photos were submitted for follow-up.'
+          : 'Return fault report was submitted for follow-up.'
+      );
     },
     onError: (error: any) => {
       Alert.alert('Report failed', error?.response?.data?.error?.message || 'Unable to submit issue report.');
@@ -259,6 +304,32 @@ const RideDetailScreen: React.FC<Props> = ({ route }) => {
       return;
     }
     issueMutation.mutate();
+  };
+
+  const handlePickFaultPhotos = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Photo permission needed', 'Allow photo access to attach fault images.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsMultipleSelection: true,
+      selectionLimit: 5,
+      quality: 0.82,
+    });
+
+    if (result.canceled) {
+      return;
+    }
+
+    const picked = result.assets.slice(0, 5).map((asset, index) => ({
+      uri: asset.uri,
+      name: asset.fileName || `fault-photo-${index + 1}.jpg`,
+      type: asset.mimeType || 'image/jpeg',
+    }));
+    setFaultPhotos(picked);
   };
 
   return (
@@ -340,7 +411,18 @@ const RideDetailScreen: React.FC<Props> = ({ route }) => {
       {canUpdateBooking ? (
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Update booking</Text>
-          <Text style={styles.helperText}>You can adjust booking hire option before ride completion.</Text>
+          <Text style={styles.helperText}>
+            You can adjust hire option or planned start time. If another booking blocks the new time, the backend will reject it.
+          </Text>
+          <Text style={styles.fieldLabel}>Planned start timestamp</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="YYYY-MM-DDTHH:mm:ss"
+            placeholderTextColor={colors.textMuted}
+            value={plannedStartInput}
+            onChangeText={setPlannedStartInput}
+            autoCapitalize="none"
+          />
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingVertical: 4 }}>
             {passes.map((plan) => (
               <Pressable
@@ -355,8 +437,27 @@ const RideDetailScreen: React.FC<Props> = ({ route }) => {
           </ScrollView>
           <PrimaryButton
             label={updateBookingMutation.isPending ? 'Updating...' : 'Update booking'}
-            disabled={!selectedHireOptionId || selectedHireOptionId === booking.hireOptionId || updateBookingMutation.isPending}
-            onPress={() => updateBookingMutation.mutate(selectedHireOptionId)}
+            disabled={updateBookingMutation.isPending}
+            onPress={() => updateBookingMutation.mutate()}
+          />
+          <Text style={styles.fieldLabel}>Cancel reason</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Reason"
+            placeholderTextColor={colors.textMuted}
+            value={cancelReason}
+            onChangeText={setCancelReason}
+          />
+          <PrimaryButton
+            label={cancelBookingMutation.isPending ? 'Cancelling...' : 'Cancel booking'}
+            disabled={cancelBookingMutation.isPending}
+            onPress={() =>
+              Alert.alert('Cancel booking', 'Are you sure you want to cancel this booking?', [
+                { text: 'Keep booking', style: 'cancel' },
+                { text: 'Cancel booking', style: 'destructive', onPress: () => cancelBookingMutation.mutate() },
+              ])
+            }
+            style={{ marginTop: 10 }}
           />
         </View>
       ) : null}
@@ -414,7 +515,8 @@ const RideDetailScreen: React.FC<Props> = ({ route }) => {
       {(canEndBooking || booking.status === 'COMPLETED') ? (
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Return fault report</Text>
-          <Text style={styles.helperText}>Report damage or abnormal conditions during/after return.</Text>
+          <Text style={styles.helperText}>Tap the scooter part that has a problem, then describe the fault.</Text>
+          <ScooterFaultDiagram selectedPart={faultPart} onSelectPart={setFaultPart} />
           <TextInput
             style={styles.input}
             placeholder="Issue title"
@@ -430,17 +532,30 @@ const RideDetailScreen: React.FC<Props> = ({ route }) => {
             value={faultDescription}
             onChangeText={setFaultDescription}
           />
-          <View style={styles.chipRow}>
-            {(['LOW', 'HIGH', 'CRITICAL'] as const).map((priority) => (
-              <Pressable
-                key={priority}
-                style={[styles.chip, faultPriority === priority && styles.chipActive]}
-                onPress={() => setFaultPriority(priority)}
-              >
-                <Text style={styles.chipText}>{priority}</Text>
-              </Pressable>
-            ))}
+          <Text style={styles.helperText}>Priority is mapped automatically by the backend for fault reports.</Text>
+          <View style={styles.photoHeader}>
+            <Text style={styles.fieldLabel}>Fault photos</Text>
+            <Pressable onPress={handlePickFaultPhotos}>
+              <Text style={styles.linkText}>Choose photos</Text>
+            </Pressable>
           </View>
+          {faultPhotos.length > 0 ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photoStrip}>
+              {faultPhotos.map((photo) => (
+                <View key={photo.uri} style={styles.photoThumbWrap}>
+                  <Image source={{ uri: photo.uri }} style={styles.photoThumb} />
+                  <Pressable
+                    style={styles.removePhoto}
+                    onPress={() => setFaultPhotos((current) => current.filter((item) => item.uri !== photo.uri))}
+                  >
+                    <Text style={styles.removePhotoText}>x</Text>
+                  </Pressable>
+                </View>
+              ))}
+            </ScrollView>
+          ) : (
+            <Text style={styles.helperText}>Optional: attach up to 5 JPEG/PNG/WEBP images.</Text>
+          )}
           <PrimaryButton
             label={issueMutation.isPending ? 'Submitting...' : 'Submit fault report'}
             disabled={issueMutation.isPending}
@@ -592,6 +707,53 @@ const styles = StyleSheet.create({
   helperText: {
     color: colors.textSecondary,
     marginBottom: 10,
+  },
+  fieldLabel: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    marginTop: 8,
+    marginBottom: 6,
+    textTransform: 'uppercase',
+  },
+  photoHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  photoStrip: {
+    marginBottom: 12,
+  },
+  photoThumbWrap: {
+    width: 74,
+    height: 74,
+    marginRight: 10,
+  },
+  photoThumb: {
+    width: 74,
+    height: 74,
+    borderRadius: radii.md,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  removePhoto: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.danger,
+  },
+  removePhotoText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    lineHeight: 18,
+  },
+  linkText: {
+    color: colors.lime,
+    fontWeight: '700',
   },
   valueText: {
     color: colors.textPrimary,

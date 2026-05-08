@@ -76,6 +76,13 @@
         style="cursor: pointer"
       >
         <el-table-column prop="issueId" label="Issue ID" width="140" />
+        <el-table-column prop="issueType" label="Type" width="120">
+          <template #default="{ row }">
+            <el-tag :type="getIssueTypeTag(row.issueType)" size="small">
+              {{ getIssueTypeLabel(row.issueType) }}
+            </el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="title" label="Title" min-width="200" />
         <el-table-column prop="priority" label="Priority" width="100">
           <template #default="{ row }">
@@ -213,6 +220,13 @@
         style="cursor: pointer"
       >
         <el-table-column prop="issueId" label="Issue ID" width="140" />
+        <el-table-column prop="issueType" label="Type" width="120">
+          <template #default="{ row }">
+            <el-tag :type="getIssueTypeTag(row.issueType)" size="small">
+              {{ getIssueTypeLabel(row.issueType) }}
+            </el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="title" label="Title" min-width="200" />
         <el-table-column prop="priority" label="Priority" width="100">
           <template #default="{ row }">
@@ -361,6 +375,12 @@
           
           <el-descriptions-item label="Title" :span="2">
             {{ selectedIssue.title }}
+          </el-descriptions-item>
+
+          <el-descriptions-item label="Type">
+            <el-tag :type="getIssueTypeTag(selectedIssue.issueType)" size="small">
+              {{ getIssueTypeLabel(selectedIssue.issueType) }}
+            </el-tag>
           </el-descriptions-item>
           
           <el-descriptions-item label="Description" :span="2">
@@ -649,6 +669,24 @@ const getStatusLabel = (status) => {
     'CLOSED': 'Closed'
   }
   return labelMap[status] || status
+}
+
+const getIssueTypeTag = (issueType) => {
+  const typeMap = {
+    'FAULT_REPORT': 'danger',
+    'COMPLAINT': 'primary',
+    'OTHER': 'info'
+  }
+  return typeMap[issueType] || 'info'
+}
+
+const getIssueTypeLabel = (issueType) => {
+  const labelMap = {
+    'FAULT_REPORT': 'Fault',
+    'COMPLAINT': 'Feedback',
+    'OTHER': 'Other'
+  }
+  return labelMap[issueType] || 'Other'
 }
 
 // 获取报告人姓名

@@ -9,8 +9,9 @@ import PassCard from '@components/PassCard';
 import TransactionItem from '@components/TransactionItem';
 import PrimaryButton from '@components/PrimaryButton';
 import { formatCurrency } from '@utils/format';
-import { PaymentMethod, PaymentMethodService } from '@services/api';
+import { DiscountService, HireOptionService, PaymentMethod, PaymentMethodService, PriceQuote } from '@services/api';
 import { formatCardNumberForInput, maskCard, parseExpiry, sanitizeCardNumber } from '@utils/security';
+import { getEligibilityHeadline, getQuoteDiscountSummary, isUserFacingPromotionType } from '@utils/promotions';
 
 const TOP_UP_AMOUNTS = [5, 10, 20, 35];
 const QUICK_PAYMENT_METHODS = [
@@ -30,6 +31,11 @@ const WalletScreen = () => {
     queryFn: PaymentMethodService.list,
   });
 
+  const discountEligibilityQuery = useQuery({
+    queryKey: ['discount-eligibility'],
+    queryFn: DiscountService.getEligibility,
+  });
+
   const [balance, setBalance] = useState(32.4);
   const [selectedPassId, setSelectedPassId] = useState<string | null>(null);
   const [selectedAmount, setSelectedAmount] = useState<number>(TOP_UP_AMOUNTS[0]);
@@ -45,6 +51,7 @@ const WalletScreen = () => {
   const paymentMethods = paymentMethodsQuery.data ?? [];
   const defaultMethod = paymentMethods.find((method) => method.isDefault) || paymentMethods[0];
   const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState<string>('');
+  const [cardFormVisible, setCardFormVisible] = useState(paymentMethods.length === 0);
 
   useEffect(() => {
     if (!selectedPaymentMethodId && defaultMethod) {
@@ -52,10 +59,34 @@ const WalletScreen = () => {
     }
   }, [defaultMethod, selectedPaymentMethodId]);
 
+  useEffect(() => {
+    if (paymentMethods.length > 0) {
+      setCardFormVisible(false);
+    }
+  }, [paymentMethods.length]);
+
   const selectedMethod = useMemo(
     () => paymentMethods.find((method) => method.paymentMethodId === selectedPaymentMethodId),
     [paymentMethods, selectedPaymentMethodId]
   );
+
+  const quoteQuery = useQuery({
+    queryKey: ['wallet-price-quotes', passes.map((pass) => pass.code || pass.name).join(',')],
+    queryFn: async () => {
+      const entries = await Promise.all(
+        passes.map(async (pass) => {
+          try {
+            const quote = await HireOptionService.quote({ hireOptionCode: pass.code || pass.name });
+            return [pass.id, quote] as const;
+          } catch {
+            return [pass.id, null] as const;
+          }
+        })
+      );
+      return Object.fromEntries(entries) as Record<string, PriceQuote | null>;
+    },
+    enabled: passes.length > 0,
+  });
 
   const createCardMutation = useMutation({
     mutationFn: () => {
@@ -122,6 +153,7 @@ const WalletScreen = () => {
 
   const paymentMethodLabel = selectedMethod ? maskCard(selectedMethod.brand, selectedMethod.last4) : 'No card selected';
   const selectedTopUpLabel = QUICK_PAYMENT_METHODS.find((item) => item.id === selectedTopUpMethod)?.title || 'Unknown method';
+  const userFacingPromotionType = discountEligibilityQuery.data?.eligibleTypes?.find(isUserFacingPromotionType);
 
   const handleAmountPress = (amount: number) => {
     setSelectedAmount(amount);
@@ -158,7 +190,13 @@ const WalletScreen = () => {
 
   const handleSelectPass = (pass: any) => {
     setSelectedPassId(pass.id);
-    Alert.alert('Pass ready', `${pass.name} is selected. You can apply it to your next reservation.`);
+    const summary = getQuoteDiscountSummary(quoteQuery.data?.[pass.id]);
+    Alert.alert(
+      'Pass ready',
+      summary
+        ? `${pass.name} is selected with ${summary.label}: ${summary.percent}% off.`
+        : `${pass.name} is selected. You can apply it to your next reservation.`
+    );
   };
 
   const handleDeleteCard = (method: PaymentMethod) => {
@@ -185,7 +223,7 @@ const WalletScreen = () => {
         </View>
       </View>
 
-      <ScrollView style={styles.scrollArea} contentContainerStyle={{ paddingBottom: 140 }} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.scrollArea} contentContainerStyle={{ paddingBottom: 220 }} showsVerticalScrollIndicator={false}>
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Saved cards</Text>
           {paymentMethodsQuery.isLoading ? <Text style={styles.helper}>Loading cards...</Text> : null}
@@ -219,48 +257,61 @@ const WalletScreen = () => {
             </View>
           ))}
 
-          <Text style={[styles.sectionTitle, { marginTop: 16 }]}>Bind new card</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Brand (e.g. VISA)"
-            placeholderTextColor={colors.textMuted}
-            autoCapitalize="characters"
-            value={brand}
-            onChangeText={setBrand}
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="Card number"
-            placeholderTextColor={colors.textMuted}
-            keyboardType="number-pad"
-            value={cardNumber}
-            onChangeText={(text) => setCardNumber(formatCardNumberForInput(text))}
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="Expiry MMYY"
-            placeholderTextColor={colors.textMuted}
-            keyboardType="number-pad"
-            value={expiry}
-            onChangeText={(text) => setExpiry(text.replace(/\D/g, '').slice(0, 4))}
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="Label (optional)"
-            placeholderTextColor={colors.textMuted}
-            value={label}
-            onChangeText={setLabel}
-          />
-          <Pressable style={styles.checkboxRow} onPress={() => setSetAsDefault((prev) => !prev)}>
-            <View style={[styles.checkbox, setAsDefault && styles.checkboxChecked]} />
-            <Text style={styles.checkboxLabel}>Set as default card</Text>
-          </Pressable>
-          <PrimaryButton
-            label={createCardMutation.isPending ? 'Binding...' : 'Bind card'}
-            onPress={() => createCardMutation.mutate()}
-            disabled={createCardMutation.isPending}
-          />
-          <Text style={styles.helper}>Card numbers are masked in the app and only last 4 digits are displayed.</Text>
+          <View style={styles.cardActionsHeader}>
+            <Text style={[styles.sectionTitle, { marginTop: 16, marginBottom: 0 }]}>Add card</Text>
+            {!cardFormVisible ? (
+              <Pressable onPress={() => setCardFormVisible(true)}>
+                <Text style={styles.linkText}>Add</Text>
+              </Pressable>
+            ) : null}
+          </View>
+          {cardFormVisible ? (
+            <>
+              <TextInput
+                style={styles.input}
+                placeholder="Brand (e.g. VISA)"
+                placeholderTextColor={colors.textMuted}
+                autoCapitalize="characters"
+                value={brand}
+                onChangeText={setBrand}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Card number"
+                placeholderTextColor={colors.textMuted}
+                keyboardType="number-pad"
+                value={cardNumber}
+                onChangeText={(text) => setCardNumber(formatCardNumberForInput(text))}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Expiry MMYY"
+                placeholderTextColor={colors.textMuted}
+                keyboardType="number-pad"
+                value={expiry}
+                onChangeText={(text) => setExpiry(text.replace(/\D/g, '').slice(0, 4))}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Label (optional)"
+                placeholderTextColor={colors.textMuted}
+                value={label}
+                onChangeText={setLabel}
+              />
+              <Pressable style={styles.checkboxRow} onPress={() => setSetAsDefault((prev) => !prev)}>
+                <View style={[styles.checkbox, setAsDefault && styles.checkboxChecked]} />
+                <Text style={styles.checkboxLabel}>Set as default card</Text>
+              </Pressable>
+              <PrimaryButton
+                label={createCardMutation.isPending ? 'Binding...' : 'Bind card'}
+                onPress={() => createCardMutation.mutate()}
+                disabled={createCardMutation.isPending}
+              />
+              <Text style={styles.helper}>Card numbers are masked in the app and only last 4 digits are displayed.</Text>
+            </>
+          ) : (
+            <Text style={styles.helper}>{paymentMethods.length > 0 ? 'Your saved card list is ready.' : 'No cards saved yet. Tap Add to bind one.'}</Text>
+          )}
         </View>
 
         <View style={styles.sectionCard}>
@@ -307,14 +358,58 @@ const WalletScreen = () => {
           />
         </View>
 
-        <Text style={styles.sectionTitle}>Ride passes</Text>
-        {isLoading ? (
-          <Text style={styles.helper}>Loading passes...</Text>
-        ) : (
-          passes.map((pass) => (
-            <PassCard key={pass.id} pass={pass} onSelect={handleSelectPass} isSelected={selectedPassId === pass.id} />
-          ))
-        )}
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Automatic promotions</Text>
+          {discountEligibilityQuery.isLoading ? <Text style={styles.helper}>Checking promotion eligibility...</Text> : null}
+          {discountEligibilityQuery.data ? (
+            <View style={styles.promoCard}>
+              <Text style={styles.promoTitle}>{getEligibilityHeadline(discountEligibilityQuery.data)}</Text>
+              <Text style={styles.promoSubtitle}>
+                Age group {discountEligibilityQuery.data.ageGroup || 'not set'} | Completed bookings{' '}
+                {discountEligibilityQuery.data.completedBookingCount ?? 0}
+              </Text>
+              <Text style={styles.promoSubtitle}>
+                {userFacingPromotionType && discountEligibilityQuery.data.estimatedPercentage
+                  ? `${discountEligibilityQuery.data.estimatedPercentage}% estimated discount. Best eligible promotion is applied automatically.`
+                  : 'No active discount is available yet.'}
+              </Text>
+            </View>
+          ) : null}
+
+          <Text style={styles.sectionTitle}>Ride passes</Text>
+          {isLoading ? (
+            <Text style={styles.helper}>Loading passes...</Text>
+          ) : (
+            passes.map((pass) => {
+              const quote = quoteQuery.data?.[pass.id];
+              const summary = getQuoteDiscountSummary(quote);
+              return (
+                <View key={pass.id} style={styles.passQuoteWrap}>
+                  <PassCard
+                    pass={{ ...pass, quote: quote || undefined }}
+                    onSelect={handleSelectPass}
+                    isSelected={selectedPassId === pass.id}
+                  />
+                  {quote ? (
+                    <View style={styles.passQuoteFooter}>
+                      {summary ? (
+                        <>
+                          <Text style={styles.originalPrice}>{formatCurrency(Number(quote.basePrice || pass.price))}</Text>
+                          <Text style={styles.discountedPrice}>{formatCurrency(Number(quote.finalPrice || pass.price))}</Text>
+                          <Text style={styles.discountCopy}>
+                            {summary.percent}% off - {summary.label}
+                          </Text>
+                        </>
+                      ) : (
+                        <Text style={styles.discountCopy}>No discount on this option right now.</Text>
+                      )}
+                    </View>
+                  ) : null}
+                </View>
+              );
+            })
+          )}
+        </View>
 
         <Text style={styles.sectionTitle}>Transactions</Text>
         <View style={styles.transactions}>
@@ -392,6 +487,53 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginBottom: 16,
   },
+  promoCard: {
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: 'rgba(131,111,255,0.32)',
+    padding: 14,
+    backgroundColor: 'rgba(131,111,255,0.1)',
+    marginBottom: 12,
+  },
+  promoTitle: {
+    color: colors.textPrimary,
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  promoSubtitle: {
+    color: colors.textSecondary,
+    marginTop: 6,
+    fontSize: 12,
+  },
+  passQuoteWrap: {
+    marginBottom: 14,
+  },
+  passQuoteFooter: {
+    marginTop: -10,
+    marginBottom: 8,
+    borderBottomLeftRadius: radii.lg,
+    borderBottomRightRadius: radii.lg,
+    padding: 12,
+    backgroundColor: 'rgba(131,111,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(131,111,255,0.2)',
+  },
+  originalPrice: {
+    color: colors.textMuted,
+    textDecorationLine: 'line-through',
+    fontSize: 12,
+  },
+  discountedPrice: {
+    color: colors.lime,
+    fontWeight: '800',
+    fontSize: 18,
+    marginTop: 2,
+  },
+  discountCopy: {
+    color: colors.textSecondary,
+    marginTop: 4,
+    fontSize: 12,
+  },
   scrollArea: {
     flex: 1,
     minHeight: 240,
@@ -427,6 +569,11 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     marginTop: 8,
   },
+  cardActionsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   methodChooser: {
     marginBottom: 14,
   },
@@ -455,7 +602,6 @@ const styles = StyleSheet.create({
   linkText: {
     color: colors.lime,
     fontWeight: '600',
-    marginRight: 16,
   },
   dangerText: {
     color: colors.danger,

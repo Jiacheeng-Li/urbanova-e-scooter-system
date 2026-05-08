@@ -20,7 +20,9 @@
       "bundleIdentifier": "com.cinnabar.urbanova",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "URBANOVA uses your location to show nearby vehicles and guide you through rides.",
-        "NSLocationAlwaysUsageDescription": "Location access lets URBANOVA keep your ride connected even when the app is in the background."
+        "NSLocationAlwaysUsageDescription": "Location access lets URBANOVA keep your ride connected even when the app is in the background.",
+        "NSCameraUsageDescription": "URBANOVA uses your camera to scan scooter QR codes and attach issue photos.",
+        "NSPhotoLibraryUsageDescription": "URBANOVA uses your photo library to attach scooter fault photos to issue reports."
       }
     },
     "android": {
@@ -33,7 +35,9 @@
       "predictiveBackGestureEnabled": true,
       "permissions": [
         "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION"
+        "ACCESS_COARSE_LOCATION",
+        "CAMERA",
+        "READ_MEDIA_IMAGES"
       ],
       "userInterfaceStyle": "automatic",
       "statusBar": {
@@ -49,10 +53,22 @@
           "locationWhenInUsePermission": "Allow URBANOVA to access your location to find nearby vehicles and unlock rides.",
           "locationAlwaysAndWhenInUsePermission": "Allow URBANOVA to use your location while riding so we can pause or end rides automatically."
         }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow URBANOVA to scan scooter QR codes."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow URBANOVA to attach scooter fault photos to issue reports."
+        }
       ]
     ],
     "extra": {
-      "apiBaseUrl": "http://192.168.5.63:8080",
+      "apiBaseUrl": "http://192.168.72.96:8080",
       "supportEmail": "support@urbanova.app",
       "enableLabs": true
     },

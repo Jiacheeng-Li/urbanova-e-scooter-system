@@ -27,6 +27,7 @@ export const usePasses = () => {
     .map((option) => ({
       id: option.hireOptionId,
       name: option.code,
+      code: option.code,
       price: normalizePrice(option.basePrice),
       durationMinutes: option.durationMinutes,
       currency: 'GBP',

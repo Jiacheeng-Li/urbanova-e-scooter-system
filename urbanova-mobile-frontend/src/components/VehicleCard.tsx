@@ -9,6 +9,8 @@ interface Props {
   isSelected?: boolean;
   onPress?: (vehicle: Vehicle) => void;
   onReserve?: (vehicle: Vehicle) => void;
+  onDetails?: (vehicle: Vehicle) => void;
+  showReserveButton?: boolean;
 }
 
 const resolveSource = (image?: string | number): ImageSourcePropType | null => {
@@ -21,8 +23,9 @@ const resolveSource = (image?: string | number): ImageSourcePropType | null => {
   return { uri: image };
 };
 
-const VehicleCard: React.FC<Props> = ({ vehicle, isSelected, onPress, onReserve }) => {
+const VehicleCard: React.FC<Props> = ({ vehicle, isSelected, onPress, onReserve, onDetails, showReserveButton = true }) => {
   const source = resolveSource(vehicle.image);
+  const statusLabel = vehicle.status === 'reserved' ? 'Reserved' : vehicle.status;
 
   return (
     <Pressable onPress={() => onPress?.(vehicle)} style={[styles.card, isSelected && styles.selectedCard]}>
@@ -30,15 +33,26 @@ const VehicleCard: React.FC<Props> = ({ vehicle, isSelected, onPress, onReserve 
       <View style={styles.info}>
         <View style={styles.heading}>
           <Text style={styles.name}>{vehicle.name}</Text>
-          <Text style={[styles.badge, statusColor(vehicle.status)]}>{vehicle.status}</Text>
+          <Text style={[styles.badge, statusColor(vehicle.status)]}>{statusLabel}</Text>
         </View>
         <Text style={styles.modelText}>{vehicle.modelName || 'Standard model'}</Text>
         <Text style={styles.meta}>
           {vehicle.battery}% | {vehicle.distance.toFixed(1)} km | {formatCurrency(vehicle.pricePerMin, 'GBP')}/min
         </Text>
-        <Pressable style={styles.reserveBtn} onPress={() => onReserve?.(vehicle)}>
-          <Text style={styles.reserveLabel}>Reserve</Text>
-        </Pressable>
+        <View style={styles.actionRow}>
+          {showReserveButton ? (
+            <Pressable style={styles.reserveBtn} onPress={() => onReserve?.(vehicle)}>
+              <Text style={styles.reserveLabel}>Reserve</Text>
+            </Pressable>
+          ) : (
+            <Text style={styles.selectHint}>{isSelected ? 'Selected' : 'Tap to select'}</Text>
+          )}
+          {onDetails ? (
+            <Pressable style={styles.detailsBtn} onPress={() => onDetails(vehicle)}>
+              <Text style={styles.detailsLabel}>Details / Report fault</Text>
+            </Pressable>
+          ) : null}
+        </View>
       </View>
     </Pressable>
   );
@@ -128,6 +142,28 @@ const styles = StyleSheet.create({
   reserveLabel: {
     color: colors.lime,
     fontWeight: '600',
+  },
+  actionRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    marginTop: 2,
+  },
+  selectHint: {
+    color: colors.lime,
+    fontWeight: '600',
+    marginRight: 12,
+  },
+  detailsBtn: {
+    borderRadius: radii.md,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    backgroundColor: 'rgba(131,111,255,0.16)',
+  },
+  detailsLabel: {
+    color: colors.textPrimary,
+    fontWeight: '700',
+    fontSize: 12,
   },
 });
 

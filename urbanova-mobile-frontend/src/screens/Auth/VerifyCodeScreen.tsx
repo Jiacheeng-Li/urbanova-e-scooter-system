@@ -26,8 +26,13 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [birthDate, setBirthDate] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [verificationCode, setVerificationCode] = useState('');
+  const [emailVerified, setEmailVerified] = useState(false);
+  const [sendingCode, setSendingCode] = useState(false);
+  const [verifyingCode, setVerifyingCode] = useState(false);
 
   const [bindCard, setBindCard] = useState(false);
   const [cardBrand, setCardBrand] = useState('VISA');
@@ -39,6 +44,44 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
   const [error, setError] = useState('');
   const setAuthPayload = useAuthStore((state) => state.setAuthPayload);
 
+  const normalizedEmail = email.trim().toLowerCase();
+
+  const handleSendVerification = async () => {
+    if (!normalizedEmail) {
+      setError('Please provide your email before requesting a code');
+      return;
+    }
+    setSendingCode(true);
+    setError('');
+    try {
+      await AuthService.sendEmailVerification(normalizedEmail);
+      Alert.alert('Verification code sent', 'Please check your email and enter the 6-digit code.');
+    } catch (err: any) {
+      setError(err?.response?.data?.error?.message || 'Unable to send verification code.');
+    } finally {
+      setSendingCode(false);
+    }
+  };
+
+  const handleVerifyEmail = async () => {
+    if (!normalizedEmail || verificationCode.trim().length !== 6) {
+      setError('Enter your email and 6-digit verification code');
+      return;
+    }
+    setVerifyingCode(true);
+    setError('');
+    try {
+      await AuthService.verifyEmailVerification(normalizedEmail, verificationCode.trim());
+      setEmailVerified(true);
+      Alert.alert('Email verified', 'You can now complete registration.');
+    } catch (err: any) {
+      setEmailVerified(false);
+      setError(err?.response?.data?.error?.message || 'Verification failed.');
+    } finally {
+      setVerifyingCode(false);
+    }
+  };
+
   const handleRegister = async () => {
     if (!fullName.trim()) {
       setError('Please provide your full name');
@@ -46,6 +89,14 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
     }
     if (!email.trim()) {
       setError('Please provide your email');
+      return;
+    }
+    if (!emailVerified) {
+      setError('Please verify your email before signing up');
+      return;
+    }
+    if (birthDate.trim() && !/^\d{4}-\d{2}-\d{2}$/.test(birthDate.trim())) {
+      setError('Birth date must use YYYY-MM-DD format');
       return;
     }
 
@@ -84,10 +135,11 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
     setLoading(true);
     try {
       const payload = await AuthService.register({
-        email: email.trim(),
+        email: normalizedEmail,
         password: password.trim(),
         fullName: fullName.trim(),
         phone: phone.trim() || undefined,
+        birthDate: birthDate.trim() || undefined,
       });
       setAuthPayload(payload);
 
@@ -143,9 +195,39 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
           value={email}
           onChangeText={(text) => {
             setEmail(text);
+            setEmailVerified(false);
             setError('');
           }}
         />
+
+        <View style={styles.verifyPanel}>
+          <View style={styles.verifyHeader}>
+            <Text style={styles.verifyTitle}>{emailVerified ? 'Email verified' : 'Email verification required'}</Text>
+            <Text style={[styles.verifyStatus, emailVerified && styles.verifyStatusOk]}>
+              {emailVerified ? 'Verified' : 'Pending'}
+            </Text>
+          </View>
+          <View style={styles.verifyRow}>
+            <TextInput
+              style={[styles.input, styles.verifyInput]}
+              placeholder="6-digit code"
+              placeholderTextColor={colors.textMuted}
+              keyboardType="number-pad"
+              value={verificationCode}
+              onChangeText={(text) => {
+                setVerificationCode(text.replace(/\D/g, '').slice(0, 6));
+                setEmailVerified(false);
+                setError('');
+              }}
+            />
+            <Pressable style={styles.smallButton} onPress={handleSendVerification} disabled={sendingCode}>
+              <Text style={styles.smallButtonText}>{sendingCode ? 'Sending...' : 'Send'}</Text>
+            </Pressable>
+            <Pressable style={styles.smallButton} onPress={handleVerifyEmail} disabled={verifyingCode}>
+              <Text style={styles.smallButtonText}>{verifyingCode ? 'Checking...' : 'Verify'}</Text>
+            </Pressable>
+          </View>
+        </View>
 
         <Text style={styles.label}>Phone number (optional)</Text>
         <TextInput
@@ -159,6 +241,20 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
             setError('');
           }}
         />
+
+        <Text style={styles.label}>Birth date (optional)</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="YYYY-MM-DD"
+          placeholderTextColor={colors.textMuted}
+          keyboardType="numbers-and-punctuation"
+          value={birthDate}
+          onChangeText={(text) => {
+            setBirthDate(text.slice(0, 10));
+            setError('');
+          }}
+        />
+        <Text style={styles.fieldHint}>Used for age checks and automatic promotions. Riders under 12 cannot book.</Text>
 
         <Text style={styles.label}>Password</Text>
         <TextInput
@@ -255,7 +351,7 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
           </>
         ) : null}
 
-        <PrimaryButton label={loading ? '' : 'Sign up'} onPress={handleRegister} disabled={loading} />
+        <PrimaryButton label={loading ? '' : 'Sign up'} onPress={handleRegister} disabled={loading || !emailVerified} />
         {loading && <ActivityIndicator color={colors.lime} style={styles.loader} />}
 
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backLink}>
@@ -303,6 +399,60 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  verifyPanel: {
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(131,111,255,0.35)',
+    backgroundColor: 'rgba(131,111,255,0.08)',
+    padding: 12,
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  verifyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  verifyTitle: {
+    color: colors.textPrimary,
+    fontWeight: '700',
+  },
+  verifyStatus: {
+    color: colors.warning,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  verifyStatusOk: {
+    color: colors.success,
+  },
+  verifyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  verifyInput: {
+    flex: 1,
+    marginRight: 8,
+  },
+  smallButton: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.lime,
+    paddingHorizontal: 10,
+    paddingVertical: 12,
+    marginLeft: 6,
+  },
+  smallButtonText: {
+    color: colors.lime,
+    fontWeight: '700',
+    fontSize: 12,
+  },
+  fieldHint: {
+    color: colors.textMuted,
+    fontSize: 12,
+    marginTop: 6,
+    marginBottom: 4,
   },
   toggleChip: {
     borderRadius: 999,

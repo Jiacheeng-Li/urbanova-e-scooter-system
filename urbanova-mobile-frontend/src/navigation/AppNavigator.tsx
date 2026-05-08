@@ -10,6 +10,9 @@ import PhoneEntryScreen from '@screens/Auth/PhoneEntryScreen';
 import VerifyCodeScreen from '@screens/Auth/VerifyCodeScreen';
 import MainTabs from './MainTabs';
 import RideDetailScreen from '@screens/Ride/RideDetailScreen';
+import VehicleDetailScreen from '@screens/Ride/VehicleDetailScreen';
+import FeedbackScreen from '@screens/Feedback/FeedbackScreen';
+import NotificationsScreen from '@screens/Notifications/NotificationsScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -50,6 +53,39 @@ const AppNavigator = () => {
               options={{
                 headerShown: true,
                 title: 'Booking Details',
+                headerTransparent: true,
+                headerTintColor: colors.textPrimary,
+                headerStyle: { backgroundColor: 'rgba(5,9,5,0.8)' },
+              }}
+            />
+            <Stack.Screen
+              name="VehicleDetail"
+              component={VehicleDetailScreen}
+              options={{
+                headerShown: true,
+                title: 'Vehicle Details',
+                headerTransparent: true,
+                headerTintColor: colors.textPrimary,
+                headerStyle: { backgroundColor: 'rgba(5,9,5,0.8)' },
+              }}
+            />
+            <Stack.Screen
+              name="Feedback"
+              component={FeedbackScreen}
+              options={{
+                headerShown: true,
+                title: 'Feedback',
+                headerTransparent: true,
+                headerTintColor: colors.textPrimary,
+                headerStyle: { backgroundColor: 'rgba(5,9,5,0.8)' },
+              }}
+            />
+            <Stack.Screen
+              name="Notifications"
+              component={NotificationsScreen}
+              options={{
+                headerShown: true,
+                title: 'Alerts',
                 headerTransparent: true,
                 headerTintColor: colors.textPrimary,
                 headerStyle: { backgroundColor: 'rgba(5,9,5,0.8)' },

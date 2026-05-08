@@ -13,7 +13,9 @@ const ScreenContainer: React.FC<Props> = ({ children, scrollable = false, conten
   if (scrollable) {
     return (
       <SafeAreaView style={styles.safe}>
-        <ScrollView contentContainerStyle={[styles.content, contentStyle]}>{children}</ScrollView>
+        <ScrollView contentContainerStyle={[styles.content, contentStyle]} keyboardShouldPersistTaps="handled">
+          {children}
+        </ScrollView>
       </SafeAreaView>
     );
   }

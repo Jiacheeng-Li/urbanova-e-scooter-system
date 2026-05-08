@@ -5,6 +5,7 @@ import {
   Animated,
   Dimensions,
   FlatList,
+  Modal,
   PanResponder,
   Pressable,
   ScrollView,
@@ -13,7 +14,9 @@ import {
   View,
   NativeSyntheticEvent,
   NativeScrollEvent,
+  TextInput,
 } from 'react-native';
+import { CameraView, useCameraPermissions, BarcodeScanningResult } from 'expo-camera';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
@@ -24,7 +27,7 @@ import { colors, radii } from '@theme/index';
 import FilterChip from '@components/FilterChip';
 import VehicleCard from '@components/VehicleCard';
 import PrimaryButton from '@components/PrimaryButton';
-import { BookingService } from '@services/api';
+import { BookingService, HireOptionService, PriceQuote, ScooterService, UserLocationService } from '@services/api';
 import { RootStackParamList } from '@models/index';
 import { usePasses } from '@hooks/usePasses';
 import FleetMap from '@components/FleetMap';
@@ -43,15 +46,24 @@ const SHEET_SNAP_POINTS = {
   expanded: SCREEN_HEIGHT * 0.12,
   collapsed: SCREEN_HEIGHT * 0.55,
 };
+const SHEET_BOTTOM_VISIBLE_PADDING = SHEET_SNAP_POINTS.expanded + 12;
 
 const RideScreen = () => {
   const { vehicles, isLoading, error } = useVehicles();
   const { location } = useCurrentLocation();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { filter, setFilter, selectedVehicle, setSelectedVehicle } = useRideStore();
+  const { filter, setFilter, selectedVehicle, setSelectedVehicle, plannedStartAt } = useRideStore();
   const { passes, isLoading: passesLoading } = usePasses();
   const [selectedHireOption, setSelectedHireOption] = useState<string | null>(null);
+  const [selectedQuote, setSelectedQuote] = useState<PriceQuote | null>(null);
+  const [quoteLoading, setQuoteLoading] = useState(false);
   const [submittingId, setSubmittingId] = useState<string | null>(null);
+  const [qrModalVisible, setQrModalVisible] = useState(false);
+  const [qrPayload, setQrPayload] = useState('');
+  const [qrLoading, setQrLoading] = useState(false);
+  const [qrCameraEnabled, setQrCameraEnabled] = useState(false);
+  const [qrScanned, setQrScanned] = useState(false);
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [sheetState, setSheetState] = useState<'collapsed' | 'expanded'>('collapsed');
   const sheetOffset = useRef(SHEET_SNAP_POINTS.collapsed);
   const translateY = useRef(new Animated.Value(SHEET_SNAP_POINTS.collapsed)).current;
@@ -124,6 +136,19 @@ const RideScreen = () => {
     }
   }, [passes, selectedHireOption]);
 
+  useEffect(() => {
+    if (!location) {
+      return;
+    }
+    UserLocationService.updateLocation({
+      lat: location.latitude,
+      lng: location.longitude,
+      source: 'CLIENT_GPS',
+    }).catch(() => {
+      // Location sync is best-effort; ride discovery still works without it.
+    });
+  }, [location]);
+
   const displayVehicles = useMemo(() => {
     return vehicles.map((point) => {
       const mapped = mapPointToVehicle(point);
@@ -143,6 +168,44 @@ const RideScreen = () => {
     setSelectedVehicle(vehicle);
   };
 
+  const handleVehicleDetails = (vehicle: any) => {
+    navigation.navigate('VehicleDetail', { vehicleId: vehicle.id });
+  };
+
+  useEffect(() => {
+    const selectedPlan = passes.find((plan) => plan.id === selectedHireOption);
+    if (!selectedVehicle || !selectedPlan?.code) {
+      setSelectedQuote(null);
+      return;
+    }
+
+    let isMounted = true;
+    setQuoteLoading(true);
+    HireOptionService.quote({
+      scooterId: selectedVehicle.id,
+      hireOptionCode: selectedPlan.code,
+    })
+      .then((quote) => {
+        if (isMounted) {
+          setSelectedQuote(quote);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setSelectedQuote(null);
+        }
+      })
+      .finally(() => {
+        if (isMounted) {
+          setQuoteLoading(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [passes, selectedHireOption, selectedVehicle]);
+
   const handleReserve = async (vehicle: any) => {
     if (!selectedHireOption) {
       Alert.alert('Select hire option', 'Please pick a hire option before reserving.');
@@ -153,6 +216,7 @@ const RideScreen = () => {
       const booking = await BookingService.create({
         scooterId: vehicle.id,
         hireOptionId: selectedHireOption,
+        plannedStartAt: plannedStartAt.trim() || undefined,
       });
       navigation.navigate('RideDetail', { bookingId: booking.bookingId });
       setSelectedVehicle(null);
@@ -162,6 +226,56 @@ const RideScreen = () => {
     } finally {
       setSubmittingId(null);
     }
+  };
+
+  const handleResolveQr = async (payloadOverride?: string) => {
+    const payloadToResolve = (payloadOverride || qrPayload).trim();
+    if (!payloadToResolve) {
+      Alert.alert('QR payload required', 'Paste a URBANOVA QR payload or scooter QR id.');
+      return;
+    }
+    setQrLoading(true);
+    try {
+      const result = await ScooterService.resolveQrPayload(payloadToResolve);
+      const scooterId =
+        result.scooter?.scooterId ||
+        result.scooterId ||
+        (typeof result.scooter === 'object' ? String((result.scooter as any)?.scooterId || '') : '');
+      const matched = displayVehicles.find((vehicle) => vehicle.id === scooterId);
+      if (matched) {
+        setSelectedVehicle(matched);
+      }
+      setQrModalVisible(false);
+      if (result.canBook === false) {
+        Alert.alert('Vehicle found but unavailable', result.reason || 'This vehicle cannot be booked right now.');
+      } else {
+        Alert.alert('Vehicle selected', scooterId ? `Scooter ${scooterId} is ready to reserve.` : 'QR resolved successfully.');
+      }
+    } catch (err: any) {
+      Alert.alert('QR resolve failed', err?.response?.data?.error?.message || 'Unable to resolve this QR payload.');
+    } finally {
+      setQrLoading(false);
+    }
+  };
+
+  const handleStartCameraScan = async () => {
+    const permission = cameraPermission?.granted ? cameraPermission : await requestCameraPermission();
+    if (!permission.granted) {
+      Alert.alert('Camera permission needed', 'Allow camera access to scan scooter QR codes.');
+      return;
+    }
+    setQrScanned(false);
+    setQrCameraEnabled(true);
+  };
+
+  const handleBarcodeScanned = (result: BarcodeScanningResult) => {
+    if (qrScanned) {
+      return;
+    }
+    setQrScanned(true);
+    setQrCameraEnabled(false);
+    setQrPayload(result.data);
+    handleResolveQr(result.data);
   };
 
   const initialRegion = {
@@ -187,20 +301,26 @@ const RideScreen = () => {
         onSelectVehicle={handleMapSelect}
       />
       <View style={styles.overlay}>
-        <View style={styles.overlayCard}>
-          <Text style={styles.heading}>Good day, rider</Text>
-          <Text style={styles.subheading}>Find URBANOVA vehicles near {location ? 'you' : 'San Francisco'}.</Text>
+        <View style={styles.topControls}>
+          <View style={styles.brandRow}>
+            <Text style={styles.brandName}>URBANOVA</Text>
+            <Pressable style={styles.scanButton} onPress={() => setQrModalVisible(true)}>
+              <Text style={styles.scanButtonText}>Scan QR</Text>
+            </Pressable>
+          </View>
+          <View style={styles.filterBar}>
+            <FlatList
+              horizontal
+              data={filters}
+              keyExtractor={(item) => item.value}
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.filterContent}
+              renderItem={({ item }) => (
+                <FilterChip label={item.label} isActive={filter === item.value} onPress={() => setFilter(item.value)} />
+              )}
+            />
+          </View>
         </View>
-        <FlatList
-          horizontal
-          data={filters}
-          keyExtractor={(item) => item.value}
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingVertical: 16 }}
-          renderItem={({ item }) => (
-            <FilterChip label={item.label} isActive={filter === item.value} onPress={() => setFilter(item.value)} />
-          )}
-        />
       </View>
       <Animated.View
         style={[styles.bottomSheet, { transform: [{ translateY }] }]}
@@ -225,7 +345,14 @@ const RideScreen = () => {
                   style={[styles.planChip, selectedHireOption === plan.id && styles.planChipActive]}
                 >
                   <Text style={styles.planName}>{plan.name}</Text>
-                  <Text style={styles.planPrice}>{formatCurrency(plan.price)}</Text>
+                  {selectedVehicle && selectedHireOption === plan.id && selectedQuote?.appliedDiscounts?.length ? (
+                    <View style={styles.discountPriceRow}>
+                      <Text style={styles.planOriginalPrice}>{formatCurrency(Number(selectedQuote.basePrice || plan.price))}</Text>
+                      <Text style={styles.planPrice}>{formatCurrency(Number(selectedQuote.finalPrice || plan.price))}</Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.planPrice}>{formatCurrency(plan.price)}</Text>
+                  )}
                   <Text style={styles.planHint}>{Math.round(plan.durationMinutes / 60)} hours</Text>
                 </Pressable>
               ))}
@@ -242,7 +369,9 @@ const RideScreen = () => {
                 vehicle={item}
                 onPress={handleVehiclePress}
                 onReserve={handleReserve}
+                onDetails={handleVehicleDetails}
                 isSelected={selectedVehicle?.id === item.id}
+                showReserveButton={false}
               />
             )}
             showsVerticalScrollIndicator={true}
@@ -257,8 +386,45 @@ const RideScreen = () => {
           onPress={() => selectedVehicle && handleReserve(selectedVehicle)}
           disabled={!selectedVehicle || !!submittingId}
         />
-        <Text style={styles.caption}>Tap a vehicle to view details or reserve it instantly.</Text>
       </Animated.View>
+
+      <Modal visible={qrModalVisible} transparent animationType="fade" onRequestClose={() => setQrModalVisible(false)}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Scan scooter QR</Text>
+            <Text style={styles.modalHint}>
+              Scan the scooter QR code or paste the QR payload. URBANOVA will ask the backend whether the vehicle can be booked.
+            </Text>
+            {qrCameraEnabled ? (
+              <View style={styles.cameraBox}>
+                <CameraView
+                  style={styles.cameraView}
+                  facing="back"
+                  barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+                  onBarcodeScanned={handleBarcodeScanned}
+                />
+                <View style={styles.scanFrame} />
+              </View>
+            ) : null}
+            <PrimaryButton
+              label={qrCameraEnabled ? 'Scanning...' : 'Open camera scanner'}
+              onPress={handleStartCameraScan}
+              disabled={qrCameraEnabled}
+              style={{ marginBottom: 10 }}
+            />
+            <TextInput
+              style={styles.qrInput}
+              placeholder="URBANOVA:SCOOTER:QR:QR-SCO0001"
+              placeholderTextColor={colors.textMuted}
+              value={qrPayload}
+              onChangeText={setQrPayload}
+              autoCapitalize="characters"
+            />
+            <PrimaryButton label={qrLoading ? 'Resolving...' : 'Resolve QR'} onPress={() => handleResolveQr()} disabled={qrLoading} />
+            <PrimaryButton label="Close" onPress={() => setQrModalVisible(false)} style={{ marginTop: 10 }} />
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -272,37 +438,58 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     width: '100%',
-    paddingTop: 40,
-    paddingHorizontal: 20,
-  },
-  overlayCard: {
-    backgroundColor: 'rgba(131,111,255,0.92)',
-    borderRadius: radii.lg,
-    paddingVertical: 14,
+    paddingTop: 58,
     paddingHorizontal: 16,
+  },
+  topControls: {
+    gap: 10,
+  },
+  brandRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderRadius: radii.lg,
+    backgroundColor: 'rgba(10,15,18,0.72)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  brandName: {
+    color: colors.lime,
+    fontSize: 20,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  filterBar: {
+    borderRadius: radii.lg,
+    backgroundColor: 'rgba(10,15,18,0.76)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  filterContent: {
+    paddingRight: 8,
+  },
+  scanButton: {
+    borderRadius: radii.md,
+    backgroundColor: 'rgba(131,111,255,0.92)',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.2)',
-    shadowColor: '#000',
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
   },
-  heading: {
-    fontSize: 24,
-    fontWeight: '700',
+  scanButtonText: {
     color: '#FFFFFF',
-  },
-  subheading: {
-    color: 'rgba(255,255,255,0.9)',
-    marginTop: 4,
+    fontWeight: '700',
   },
   bottomSheet: {
     position: 'absolute',
     bottom: 0,
     width: '100%',
     height: SHEET_HEIGHT,
-    paddingBottom: 32,
+    paddingBottom: SHEET_BOTTOM_VISIBLE_PADDING,
     paddingHorizontal: 20,
     paddingTop: 12,
     borderTopLeftRadius: 32,
@@ -323,11 +510,6 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     fontSize: 18,
     fontWeight: '700',
-  },
-  caption: {
-    color: colors.textMuted,
-    textAlign: 'center',
-    marginTop: 12,
   },
   vehicleList: {
     flex: 1,
@@ -382,6 +564,67 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     marginTop: 2,
     fontSize: 12,
+  },
+  discountPriceRow: {
+    marginTop: 4,
+  },
+  planOriginalPrice: {
+    color: colors.textMuted,
+    textDecorationLine: 'line-through',
+    fontSize: 12,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  modalCard: {
+    backgroundColor: colors.graphite,
+    borderRadius: radii.lg,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+  },
+  modalTitle: {
+    color: colors.textPrimary,
+    fontSize: 20,
+    fontWeight: '800',
+  },
+  modalHint: {
+    color: colors.textSecondary,
+    marginTop: 8,
+    marginBottom: 14,
+  },
+  qrInput: {
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
+    borderRadius: radii.md,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    color: colors.textPrimary,
+    marginBottom: 12,
+  },
+  cameraBox: {
+    height: 260,
+    borderRadius: radii.lg,
+    overflow: 'hidden',
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(131,111,255,0.45)',
+  },
+  cameraView: {
+    flex: 1,
+  },
+  scanFrame: {
+    position: 'absolute',
+    left: '18%',
+    right: '18%',
+    top: '22%',
+    bottom: '22%',
+    borderWidth: 2,
+    borderColor: colors.lime,
+    borderRadius: radii.lg,
   },
 });
 
