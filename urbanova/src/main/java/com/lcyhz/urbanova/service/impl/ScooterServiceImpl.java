@@ -21,6 +21,7 @@ import com.lcyhz.urbanova.mapper.ScooterMapper;
 import com.lcyhz.urbanova.mapper.ScooterTypeMapper;
 import com.lcyhz.urbanova.mapper.UserLocationMapper;
 import com.lcyhz.urbanova.mapper.UserMapper;
+import com.lcyhz.urbanova.service.IssueManagementService;
 import com.lcyhz.urbanova.service.ScooterService;
 import com.lcyhz.urbanova.service.support.PlatformSupportService;
 import com.lcyhz.urbanova.vo.scooter.AdminScooterVo;
@@ -69,6 +70,7 @@ public class ScooterServiceImpl implements ScooterService {
     private final UserMapper userMapper;
     private final UserLocationMapper userLocationMapper;
     private final PlatformSupportService platformSupportService;
+    private final IssueManagementService issueManagementService;
 
     @Value("${app.scooter.low-battery-threshold:20}")
     private int lowBatteryThreshold;
@@ -304,6 +306,9 @@ public class ScooterServiceImpl implements ScooterService {
         entity.setVersion(nextVersion(entity.getVersion()));
         entity.setUpdatedAt(LocalDateTime.now());
         scooterMapper.updateById(entity);
+        if (DomainConstants.ScooterStatus.CHARGING.equals(entity.getStatus())) {
+            issueManagementService.closeLowBatteryIssuesOnCharging(entity.getScooterId());
+        }
         return toAdminVo(entity, requireScooterType(entity.getTypeCode()));
     }
 
@@ -339,6 +344,9 @@ public class ScooterServiceImpl implements ScooterService {
             scooter.setVersion(nextVersion(scooter.getVersion()));
             scooter.setUpdatedAt(now);
             scooterMapper.updateById(scooter);
+            if (DomainConstants.ScooterStatus.CHARGING.equals(scooter.getStatus())) {
+                issueManagementService.closeLowBatteryIssuesOnCharging(scooter.getScooterId());
+            }
         }
 
         BulkScooterStatusUpdateVo response = new BulkScooterStatusUpdateVo();
@@ -367,6 +375,7 @@ public class ScooterServiceImpl implements ScooterService {
         entity.setVersion(nextVersion(entity.getVersion()));
         entity.setUpdatedAt(LocalDateTime.now());
         scooterMapper.updateById(entity);
+        issueManagementService.closeLowBatteryIssuesOnCharging(entity.getScooterId());
         return toPublicScooterMap(entity, requireScooterType(entity.getTypeCode()));
     }
 
@@ -448,6 +457,7 @@ public class ScooterServiceImpl implements ScooterService {
             if (oldBattery >= lowBatteryThreshold && newBattery < lowBatteryThreshold) {
                 scooter.setLowBatteryAlertedAt(now);
                 notifyManagersLowBattery(scooter);
+                issueManagementService.createLowBatteryIssueIfAbsent(scooter.getScooterId());
             }
             scooterMapper.updateById(scooter);
         }

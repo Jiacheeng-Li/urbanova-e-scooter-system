@@ -46,6 +46,8 @@ urbanova-mobile-frontend/.env.*
 # local tooling / caches
 .cache/
 .tools/
+.local/
+LOCAL_ENV_SETUP.md
 urbanova-frontend/.npm-cache/
 urbanova-mobile-frontend/.npm-cache/
 

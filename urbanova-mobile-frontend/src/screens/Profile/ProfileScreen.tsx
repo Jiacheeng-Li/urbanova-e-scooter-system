@@ -43,7 +43,7 @@ const ProfileScreen = () => {
   const setContrastMode = useSettingsStore((state) => state.setContrastMode);
 
   const usageSummaryQuery = useQuery({
-    queryKey: ['usage-summary'],
+    queryKey: ['usage-summary', profile?.userId ?? 'guest'],
     queryFn: AuthService.getUsageSummary,
     enabled: !!profile,
   });
@@ -166,16 +166,16 @@ const ProfileScreen = () => {
     }
   };
 
-  const handleRequestResetToken = async () => {
+  const handleRequestResetCode = async () => {
     if (!resetEmail.trim()) {
       Alert.alert('Validation', 'Email is required.');
       return;
     }
     try {
       await AuthService.forgotPassword(resetEmail.trim());
-      Alert.alert('Reset code sent', 'Please check your email for the 6-digit reset code.');
+      Alert.alert('Reset code sent', 'If the email is registered, a password reset code has been sent.');
     } catch (error: any) {
-      Alert.alert('Request failed', error?.response?.data?.error?.message || 'Unable to generate reset token.');
+      Alert.alert('Request failed', error?.response?.data?.error?.message || 'Unable to send reset code.');
     }
   };
 
@@ -240,7 +240,7 @@ const ProfileScreen = () => {
     {
       id: 'security',
       title: 'Account security center',
-      description: 'Request email reset codes and reset password with validation.',
+      description: 'Send an email reset code and reset password with validation.',
       handler: handleOpenSecurity,
     },
     {
@@ -423,7 +423,7 @@ const ProfileScreen = () => {
         <View style={styles.modalBackdrop}>
           <View style={[styles.modalCard, contrastMode === 'high' && styles.modalCardHighContrast]}>
             <Text style={[styles.modalTitle, { fontSize: scaleFont(18) }]}>Security center</Text>
-            <Text style={[styles.modalDescription, { fontSize: scaleFont(13) }]}>Use email reset codes and validation for protected account operations.</Text>
+            <Text style={[styles.modalDescription, { fontSize: scaleFont(13) }]}>Use the email-code reset flow for protected account operations.</Text>
             <Text style={[styles.sectionLabel, styles.modalSectionLabel, { fontSize: scaleFont(12) }]}>Email</Text>
             <TextInput
               style={styles.input}
@@ -433,15 +433,15 @@ const ProfileScreen = () => {
               value={resetEmail}
               onChangeText={setResetEmail}
             />
-            <PrimaryButton label="Send reset code" onPress={handleRequestResetToken} />
+            <PrimaryButton label="Send reset code" onPress={handleRequestResetCode} />
 
-            <Text style={[styles.sectionLabel, styles.modalSectionLabel, { fontSize: scaleFont(12) }]}>Reset code</Text>
+            <Text style={[styles.sectionLabel, styles.modalSectionLabel, { fontSize: scaleFont(12) }]}>Verification code</Text>
             <TextInput
               style={styles.input}
               placeholder="6-digit code"
               placeholderTextColor={colors.textMuted}
-              keyboardType="number-pad"
               value={resetCode}
+              keyboardType="number-pad"
               onChangeText={(text) => setResetCode(text.replace(/\D/g, '').slice(0, 6))}
             />
             <Text style={[styles.sectionLabel, styles.modalSectionLabel, { fontSize: scaleFont(12) }]}>New password</Text>

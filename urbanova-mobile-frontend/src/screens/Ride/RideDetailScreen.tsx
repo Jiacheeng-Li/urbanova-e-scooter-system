@@ -31,6 +31,7 @@ import { formatCurrency, formatDate } from '@utils/format';
 import { validateReturnLocation } from '@utils/geo';
 import { maskCard } from '@utils/security';
 import ScooterFaultDiagram, { FaultPart } from '@components/ScooterFaultDiagram';
+import { useAuthStore } from '@store/useAuthStore';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'RideDetail'>;
 
@@ -53,6 +54,7 @@ const getApiErrorMessage = (error: any, fallback: string) => {
 
 const RideDetailScreen: React.FC<Props> = ({ route }) => {
   const { bookingId } = route.params;
+  const userId = useAuthStore((state) => state.user?.userId);
   const queryClient = useQueryClient();
   const { passes } = usePasses();
   const { location } = useCurrentLocation();
@@ -70,27 +72,31 @@ const RideDetailScreen: React.FC<Props> = ({ route }) => {
   const [cancelReason, setCancelReason] = useState('Plans changed');
 
   const bookingQuery = useQuery({
-    queryKey: ['booking-detail', bookingId],
+    queryKey: ['booking-detail', userId ?? 'guest', bookingId],
     queryFn: () => BookingService.getDetail(bookingId),
+    enabled: !!userId,
   });
 
   const paymentsQuery = useQuery({
-    queryKey: ['booking-payments', bookingId],
+    queryKey: ['booking-payments', userId ?? 'guest', bookingId],
     queryFn: () => PaymentService.listByBooking(bookingId),
+    enabled: !!userId,
   });
 
   const timelineQuery = useQuery({
-    queryKey: ['booking-timeline', bookingId],
+    queryKey: ['booking-timeline', userId ?? 'guest', bookingId],
     queryFn: () => BookingService.timeline(bookingId),
+    enabled: !!userId,
   });
 
   const paymentMethodsQuery = useQuery({
-    queryKey: ['payment-methods'],
+    queryKey: ['payment-methods', userId ?? 'guest'],
     queryFn: PaymentMethodService.list,
+    enabled: !!userId,
   });
 
   const confirmationQuery = useQuery({
-    queryKey: ['booking-confirmation', bookingId],
+    queryKey: ['booking-confirmation', userId ?? 'guest', bookingId],
     queryFn: async () => {
       try {
         return await ConfirmationService.getForBooking(bookingId);
@@ -102,6 +108,7 @@ const RideDetailScreen: React.FC<Props> = ({ route }) => {
       }
     },
     retry: false,
+    enabled: !!userId,
   });
 
   const activePaymentMethods = useMemo(
@@ -145,7 +152,7 @@ const RideDetailScreen: React.FC<Props> = ({ route }) => {
       paymentsQuery.refetch(),
       timelineQuery.refetch(),
       confirmationQuery.refetch(),
-      queryClient.invalidateQueries({ queryKey: ['bookings'] }),
+      queryClient.invalidateQueries({ queryKey: ['bookings', userId ?? 'guest'] }),
     ]);
   };
 
@@ -324,7 +331,7 @@ const RideDetailScreen: React.FC<Props> = ({ route }) => {
       return;
     }
 
-    const picked = result.assets.slice(0, 5).map((asset, index) => ({
+    const picked = result.assets.slice(0, 5).map((asset: ImagePicker.ImagePickerAsset, index: number) => ({
       uri: asset.uri,
       name: asset.fileName || `fault-photo-${index + 1}.jpg`,
       type: asset.mimeType || 'image/jpeg',

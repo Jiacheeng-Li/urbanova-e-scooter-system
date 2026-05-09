@@ -39,6 +39,9 @@ import java.util.UUID;
 @Service
 public class IssueManagementService {
     private static final Set<String> ALLOWED_IMAGE_TYPES = Set.of("image/jpeg", "image/png", "image/webp");
+    private static final String LOW_BATTERY_ISSUE_TITLE = "Low battery";
+    private static final String LOW_BATTERY_ISSUE_DESCRIPTION = "Low battery detected. Please replace battery.";
+    private static final String LOW_BATTERY_CLOSED_FEEDBACK = "Closed automatically when charging started.";
 
     private final IssueMapper issueMapper;
     private final IssueCommentMapper issueCommentMapper;
@@ -204,6 +207,17 @@ public class IssueManagementService {
         return issueMapper.selectList(query).stream().map(issue -> toIssueMap(issue, null)).toList();
     }
 
+    public List<Map<String, Object>> listOpenIssuesByPriority(String priority) {
+        String normalizedPriority = normalizePriority(priority, null);
+        return issueMapper.selectList(new LambdaQueryWrapper<IssueEntity>()
+                        .eq(IssueEntity::getPriority, normalizedPriority)
+                        .ne(IssueEntity::getStatus, DomainConstants.IssueStatus.CLOSED)
+                        .orderByDesc(IssueEntity::getUpdatedAt))
+                .stream()
+                .map(issue -> toIssueMap(issue, null))
+                .toList();
+    }
+
     @Transactional(rollbackFor = Exception.class)
     public Map<String, Object> updatePriority(String issueId, String priority) {
         IssueEntity issue = requireIssue(issueId);
@@ -251,10 +265,75 @@ public class IssueManagementService {
                                 DomainConstants.IssuePriority.HIGH,
                                 DomainConstants.IssuePriority.URGENT,
                                 DomainConstants.IssuePriority.CRITICAL)
+                        .ne(IssueEntity::getStatus, DomainConstants.IssueStatus.CLOSED)
                         .orderByDesc(IssueEntity::getUpdatedAt))
                 .stream()
                 .map(issue -> toIssueMap(issue, null))
                 .toList();
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public void createLowBatteryIssueIfAbsent(String scooterId) {
+        if (!hasText(scooterId)) {
+            return;
+        }
+        String normalizedScooterId = scooterId.trim().toUpperCase(Locale.ROOT);
+        IssueEntity existing = issueMapper.selectOne(new LambdaQueryWrapper<IssueEntity>()
+                .eq(IssueEntity::getScooterId, normalizedScooterId)
+                .eq(IssueEntity::getIssueType, DomainConstants.IssueType.LOW_BATTERY)
+                .ne(IssueEntity::getStatus, DomainConstants.IssueStatus.CLOSED)
+                .last("LIMIT 1"));
+        if (existing != null) {
+            return;
+        }
+
+        String reporterUserId = resolveSystemReporterUserId();
+        if (!hasText(reporterUserId)) {
+            platformSupportService.recordAudit("LOW_BATTERY_ISSUE_SKIPPED", "SCOOTER", normalizedScooterId,
+                    "No active manager account available for issue ownership");
+            return;
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        IssueEntity issue = new IssueEntity();
+        issue.setIssueId("ISS-" + UUID.randomUUID().toString().replace("-", "").substring(0, 10).toUpperCase(Locale.ROOT));
+        issue.setReporterUserId(reporterUserId);
+        issue.setScooterId(normalizedScooterId);
+        issue.setIssueType(DomainConstants.IssueType.LOW_BATTERY);
+        issue.setTitle(LOW_BATTERY_ISSUE_TITLE);
+        issue.setDescription(LOW_BATTERY_ISSUE_DESCRIPTION);
+        issue.setPriority(DomainConstants.IssuePriority.LOW);
+        issue.setStatus(DomainConstants.IssueStatus.OPEN);
+        issue.setCreatedAt(now);
+        issue.setUpdatedAt(now);
+        issueMapper.insert(issue);
+        platformSupportService.recordAudit("LOW_BATTERY_ISSUE_CREATED", "ISSUE", issue.getIssueId(),
+                "scooterId=" + normalizedScooterId);
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public void closeLowBatteryIssuesOnCharging(String scooterId) {
+        if (!hasText(scooterId)) {
+            return;
+        }
+        String normalizedScooterId = scooterId.trim().toUpperCase(Locale.ROOT);
+        List<IssueEntity> openIssues = issueMapper.selectList(new LambdaQueryWrapper<IssueEntity>()
+                .eq(IssueEntity::getScooterId, normalizedScooterId)
+                .eq(IssueEntity::getIssueType, DomainConstants.IssueType.LOW_BATTERY)
+                .ne(IssueEntity::getStatus, DomainConstants.IssueStatus.CLOSED));
+        if (openIssues.isEmpty()) {
+            return;
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        for (IssueEntity issue : openIssues) {
+            issue.setStatus(DomainConstants.IssueStatus.CLOSED);
+            issue.setManagerFeedback(LOW_BATTERY_CLOSED_FEEDBACK);
+            issue.setUpdatedAt(now);
+            issueMapper.updateById(issue);
+            platformSupportService.recordAudit("LOW_BATTERY_ISSUE_CLOSED", "ISSUE", issue.getIssueId(),
+                    "charging_started_for_scooter=" + normalizedScooterId);
+        }
     }
 
     private IssueEntity requireAccessibleIssue(String userId, String role, String issueId) {
@@ -305,6 +384,15 @@ public class IssueManagementService {
         UserEntity user = userMapper.selectOne(new LambdaQueryWrapper<UserEntity>()
                 .eq(UserEntity::getUserId, userId));
         return user == null ? null : trimToNull(user.getEmail());
+    }
+
+    private String resolveSystemReporterUserId() {
+        List<UserEntity> managers = userMapper.selectList(new LambdaQueryWrapper<UserEntity>()
+                .eq(UserEntity::getRole, DomainConstants.ROLE_MANAGER)
+                .eq(UserEntity::getAccountStatus, DomainConstants.ACCOUNT_ACTIVE)
+                .orderByAsc(UserEntity::getCreatedAt)
+                .last("LIMIT 1"));
+        return managers.isEmpty() ? null : managers.get(0).getUserId();
     }
 
     private void restoreScooterAvailability(String scooterId) {
@@ -446,6 +534,7 @@ public class IssueManagementService {
         return switch (issueType) {
             case DomainConstants.IssueType.FAULT_REPORT -> DomainConstants.IssuePriority.URGENT;
             case DomainConstants.IssueType.COMPLAINT -> DomainConstants.IssuePriority.HIGH;
+            case DomainConstants.IssueType.LOW_BATTERY -> DomainConstants.IssuePriority.LOW;
             default -> DomainConstants.IssuePriority.MEDIUM;
         };
     }
