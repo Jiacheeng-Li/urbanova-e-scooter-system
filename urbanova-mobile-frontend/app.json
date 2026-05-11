@@ -8,7 +8,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "cover",
@@ -22,7 +22,8 @@
         "NSLocationWhenInUseUsageDescription": "URBANOVA uses your location to show nearby vehicles and guide you through rides.",
         "NSLocationAlwaysUsageDescription": "Location access lets URBANOVA keep your ride connected even when the app is in the background.",
         "NSCameraUsageDescription": "URBANOVA uses your camera to scan scooter QR codes and attach issue photos.",
-        "NSPhotoLibraryUsageDescription": "URBANOVA uses your photo library to attach scooter fault photos to issue reports."
+        "NSPhotoLibraryUsageDescription": "URBANOVA uses your photo library to attach scooter fault photos to issue reports.",
+        "LSApplicationQueriesSchemes": ["baidumap"]
       }
     },
     "android": {
@@ -34,6 +35,8 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": true,
       "permissions": [
+        "INTERNET",
+        "ACCESS_NETWORK_STATE",
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
         "CAMERA",
@@ -70,7 +73,11 @@
     "extra": {
       "apiBaseUrl": "http://192.168.72.96:8080",
       "supportEmail": "support@urbanova.app",
-      "enableLabs": true
+      "enableLabs": true,
+      "baiduMap": {
+        "androidApiKey": "",
+        "iosApiKey": ""
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png"

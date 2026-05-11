@@ -10,6 +10,7 @@ import AppNavigator from '@navigation/AppNavigator';
 import { useAuthStore } from '@store/useAuthStore';
 import { colors } from '@theme/colors';
 import { queryClient } from '@services/queryClient';
+import { initializeBaiduMap } from '@services/baiduMap';
 
 function AppContent() {
   const checkAuth = useAuthStore((state) => state.checkAuth);
@@ -18,6 +19,10 @@ function AppContent() {
   useEffect(() => {
     const init = async () => {
       try {
+        const mapInitialization = initializeBaiduMap();
+        if (!mapInitialization.ready && mapInitialization.error) {
+          console.warn(mapInitialization.error);
+        }
         await checkAuth();
       } catch (error) {
         console.warn('Failed to restore session', error);

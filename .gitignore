@@ -42,6 +42,7 @@ urbanova-mobile-frontend/ios/
 # env files / secrets
 urbanova-mobile-frontend/.env
 urbanova-mobile-frontend/.env.*
+!urbanova-mobile-frontend/.env.example
 
 # local tooling / caches
 .cache/
