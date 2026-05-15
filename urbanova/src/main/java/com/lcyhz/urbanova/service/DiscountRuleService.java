@@ -125,6 +125,7 @@ public class DiscountRuleService {
         DiscountComputation computation = calculateForUser(userId, BigDecimal.valueOf(100));
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("userId", userId);
+        data.put("discountCategory", user.getDiscountCategory());
         data.put("birthDate", user.getBirthDate());
         data.put("age", context.age());
         data.put("ageGroup", context.ageGroup());
