@@ -117,23 +117,24 @@ public class AnalyticsService {
     }
 
     public List<Map<String, Object>> frequentUsers() {
-        int threshold = discountRuleService.resolveFrequentUserThreshold();
+        BigDecimal thresholdHours = discountRuleService.resolveFrequentUserThresholdHours();
         return userMapper.selectList(new LambdaQueryWrapper<UserEntity>()
                         .eq(UserEntity::getRole, DomainConstants.ROLE_CUSTOMER)
                         .eq(UserEntity::getAccountStatus, DomainConstants.ACCOUNT_ACTIVE))
                 .stream()
                 .map(user -> {
-                    int completedBookings = discountRuleService.countCompletedBookings(user.getUserId());
-                    if (completedBookings < threshold) {
+                    BigDecimal hoursLast7Days = discountRuleService.calculateRecentHours(user.getUserId());
+                    if (hoursLast7Days.compareTo(thresholdHours) < 0) {
                         return null;
                     }
+                    int completedBookings = discountRuleService.countCompletedBookings(user.getUserId());
                     Map<String, Object> row = new LinkedHashMap<>();
                     row.put("userId", user.getUserId());
                     row.put("email", user.getEmail());
                     row.put("fullName", user.getFullName());
                     row.put("completedBookings", completedBookings);
-                    row.put("thresholdBookings", threshold);
-                    row.put("hoursLast7Days", discountRuleService.calculateRecentHours(user.getUserId()));
+                    row.put("thresholdHoursPerWeek", thresholdHours);
+                    row.put("hoursLast7Days", hoursLast7Days);
                     return row;
                 })
                 .filter(java.util.Objects::nonNull)

@@ -3,11 +3,13 @@ package com.lcyhz.urbanova.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.lcyhz.urbanova.common.exception.BusinessException;
 import com.lcyhz.urbanova.common.exception.ErrorCodes;
+import com.lcyhz.urbanova.entity.DiscountRuleEntity;
 import com.lcyhz.urbanova.domain.DomainConstants;
 import com.lcyhz.urbanova.entity.BookingEntity;
 import com.lcyhz.urbanova.entity.PromotionPolicyEntity;
 import com.lcyhz.urbanova.entity.UserEntity;
 import com.lcyhz.urbanova.mapper.BookingMapper;
+import com.lcyhz.urbanova.mapper.DiscountRuleMapper;
 import com.lcyhz.urbanova.mapper.PromotionPolicyMapper;
 import com.lcyhz.urbanova.mapper.UserMapper;
 import com.lcyhz.urbanova.service.support.UserAgeSupport;
@@ -34,17 +36,21 @@ import java.util.stream.Collectors;
 @Service
 public class DiscountRuleService {
     private static final BigDecimal MAX_TOTAL_PERCENTAGE = BigDecimal.valueOf(30);
+    private static final BigDecimal DEFAULT_FREQUENT_USER_THRESHOLD_HOURS = BigDecimal.valueOf(8).setScale(2, RoundingMode.HALF_UP);
 
     private final PromotionPolicyMapper promotionPolicyMapper;
     private final BookingMapper bookingMapper;
     private final UserMapper userMapper;
+    private final DiscountRuleMapper discountRuleMapper;
 
     public DiscountRuleService(PromotionPolicyMapper promotionPolicyMapper,
                                BookingMapper bookingMapper,
-                               UserMapper userMapper) {
+                               UserMapper userMapper,
+                               DiscountRuleMapper discountRuleMapper) {
         this.promotionPolicyMapper = promotionPolicyMapper;
         this.bookingMapper = bookingMapper;
         this.userMapper = userMapper;
+        this.discountRuleMapper = discountRuleMapper;
     }
 
     public DiscountComputation calculateForUser(String userId, BigDecimal basePrice) {
@@ -60,7 +66,9 @@ public class DiscountRuleService {
 
         PromotionContext context = buildContext(user);
         List<PromotionPolicyEntity> selectedPolicies = selectApplicablePolicies(context);
-        if (selectedPolicies.isEmpty()) {
+        DiscountRuleEntity frequentUserRule = findActiveRule(DomainConstants.DiscountRuleType.FREQUENT_USER);
+        boolean frequentUserEligible = isFrequentUserEligible(context, frequentUserRule);
+        if (selectedPolicies.isEmpty() && !frequentUserEligible) {
             return new DiscountComputation(context.hoursLast7Days(), BigDecimal.ZERO, basePrice, List.of(), List.of(), BigDecimal.ZERO);
         }
 
@@ -68,6 +76,9 @@ public class DiscountRuleService {
                 .map(PromotionPolicyEntity::getPercentage)
                 .filter(Objects::nonNull)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (frequentUserEligible) {
+            totalPercentage = totalPercentage.add(zeroIfNull(frequentUserRule.getPercentage()));
+        }
         if (totalPercentage.compareTo(MAX_TOTAL_PERCENTAGE) > 0) {
             totalPercentage = MAX_TOTAL_PERCENTAGE;
         }
@@ -80,6 +91,12 @@ public class DiscountRuleService {
             appliedDiscounts.add(new AppliedDiscountVo(policy.getPolicyCode(), amount));
             totalDiscount = totalDiscount.add(amount);
         }
+        if (frequentUserEligible) {
+            BigDecimal amount = basePrice.multiply(zeroIfNull(frequentUserRule.getPercentage()))
+                    .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+            appliedDiscounts.add(new AppliedDiscountVo(frequentUserRule.getType(), amount));
+            totalDiscount = totalDiscount.add(amount);
+        }
 
         BigDecimal cappedDiscount = basePrice.multiply(totalPercentage)
                 .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
@@ -88,8 +105,13 @@ public class DiscountRuleService {
         }
 
         BigDecimal finalPrice = basePrice.subtract(totalDiscount).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
-        List<String> eligibleTypes = selectedPolicies.stream().map(PromotionPolicyEntity::getPolicyCode).toList();
-        return new DiscountComputation(context.hoursLast7Days(), totalDiscount, finalPrice, appliedDiscounts, eligibleTypes, totalPercentage);
+        LinkedHashSet<String> eligibleTypes = selectedPolicies.stream()
+                .map(PromotionPolicyEntity::getPolicyCode)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (frequentUserEligible) {
+            eligibleTypes.add(frequentUserRule.getType());
+        }
+        return new DiscountComputation(context.hoursLast7Days(), totalDiscount, finalPrice, appliedDiscounts, List.copyOf(eligibleTypes), totalPercentage);
     }
 
     public Map<String, Object> getEligibility(String userId) {
@@ -108,6 +130,7 @@ public class DiscountRuleService {
         data.put("ageGroup", context.ageGroup());
         data.put("completedBookingCount", context.completedBookingCount());
         data.put("hoursLast7Days", context.hoursLast7Days());
+        data.put("frequentUserThresholdHoursPerWeek", resolveFrequentUserThresholdHours());
         data.put("eligibleTypes", computation.eligibleTypes());
         data.put("estimatedPercentage", computation.totalPercentage());
         data.put("activePolicies", listPolicies());
@@ -241,14 +264,15 @@ public class DiscountRuleService {
     }
 
     public int resolveFrequentUserThreshold() {
-        return promotionPolicyMapper.selectList(new LambdaQueryWrapper<PromotionPolicyEntity>()
-                        .eq(PromotionPolicyEntity::getActive, 1)
-                        .eq(PromotionPolicyEntity::getCategory, DomainConstants.PromotionCategory.LOYALTY))
-                .stream()
-                .map(PromotionPolicyEntity::getMinCompletedBookings)
-                .filter(Objects::nonNull)
-                .min(Integer::compareTo)
-                .orElse(5);
+        return resolveFrequentUserThresholdHours().setScale(0, RoundingMode.HALF_UP).intValue();
+    }
+
+    public BigDecimal resolveFrequentUserThresholdHours() {
+        DiscountRuleEntity rule = findActiveRule(DomainConstants.DiscountRuleType.FREQUENT_USER);
+        if (rule == null || rule.getThresholdHoursPerWeek() == null || rule.getThresholdHoursPerWeek().compareTo(BigDecimal.ZERO) <= 0) {
+            return DEFAULT_FREQUENT_USER_THRESHOLD_HOURS;
+        }
+        return rule.getThresholdHoursPerWeek().setScale(2, RoundingMode.HALF_UP);
     }
 
     public List<Map<String, Object>> listRules() {
@@ -353,6 +377,20 @@ public class DiscountRuleService {
             return false;
         }
         return true;
+    }
+
+    private boolean isFrequentUserEligible(PromotionContext context, DiscountRuleEntity rule) {
+        if (rule == null || rule.getActive() == null || rule.getActive() != 1) {
+            return false;
+        }
+        return context.hoursLast7Days().compareTo(resolveFrequentUserThresholdHours()) >= 0;
+    }
+
+    private DiscountRuleEntity findActiveRule(String type) {
+        return discountRuleMapper.selectOne(new LambdaQueryWrapper<DiscountRuleEntity>()
+                .eq(DiscountRuleEntity::getType, type)
+                .eq(DiscountRuleEntity::getActive, 1)
+                .last("LIMIT 1"));
     }
 
     private boolean isActiveNow(PromotionPolicyEntity policy, LocalDateTime now) {

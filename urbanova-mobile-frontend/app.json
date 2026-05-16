@@ -8,7 +8,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "cover",
@@ -27,7 +27,8 @@
         "NSLocationWhenInUseUsageDescription": "URBANOVA uses your location to show nearby vehicles and guide you through rides.",
         "NSLocationAlwaysUsageDescription": "Location access lets URBANOVA keep your ride connected even when the app is in the background.",
         "NSCameraUsageDescription": "URBANOVA uses your camera to scan scooter QR codes and attach issue photos.",
-        "NSPhotoLibraryUsageDescription": "URBANOVA uses your photo library to attach scooter fault photos to issue reports."
+        "NSPhotoLibraryUsageDescription": "URBANOVA uses your photo library to attach scooter fault photos to issue reports.",
+        "LSApplicationQueriesSchemes": ["baidumap"]
       }
     },
     "android": {
@@ -40,6 +41,7 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": true,
       "permissions": [
+<<<<<<< HEAD
         "android.permission.INTERNET",
         "android.permission.ACCESS_NETWORK_STATE",
         "android.permission.ACCESS_FINE_LOCATION",
@@ -50,6 +52,14 @@
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO"
+=======
+        "INTERNET",
+        "ACCESS_NETWORK_STATE",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "CAMERA",
+        "READ_MEDIA_IMAGES"
+>>>>>>> origin/feature/backend-sprint4-improving
       ],
       "userInterfaceStyle": "automatic",
       "statusBar": {
@@ -84,8 +94,14 @@
       "apiBaseUrl": "http://47.109.73.119:8080",
       "supportEmail": "support@urbanova.app",
       "enableLabs": true,
+<<<<<<< HEAD
       "eas": {
         "projectId": "bba7ae47-c9ce-4df8-b5a3-75f87b85fb39"
+=======
+      "baiduMap": {
+        "androidApiKey": "",
+        "iosApiKey": ""
+>>>>>>> origin/feature/backend-sprint4-improving
       }
     },
     "web": {

@@ -197,8 +197,8 @@ export const AuthService = {
       await clearSession();
     }
   },
-  forgotPassword: async (email: string): Promise<{ email?: string; sent?: boolean; expiresAt?: string; message?: string }> => {
-    const response = await api.post<ApiResponse<{ email?: string; sent?: boolean; expiresAt?: string; message?: string }>>('/api/v1/auth/password/forgot', {
+  forgotPassword: async (email: string): Promise<{ accepted: boolean; email: string }> => {
+    const response = await api.post<ApiResponse<{ accepted: boolean; email: string }>>('/api/v1/auth/password/forgot', {
       email,
     });
     return unwrap(response);
@@ -277,6 +277,58 @@ export const PaymentMethodService = {
   },
   setDefault: async (paymentMethodId: string): Promise<PaymentMethod> => {
     const response = await api.post<ApiResponse<PaymentMethod>>(`/api/v1/payment-methods/${paymentMethodId}/default`);
+    return unwrap(response);
+  },
+};
+
+// ============ Wallet ============
+
+export interface WalletAccount {
+  walletAccountId: string;
+  userId: string;
+  balance: number;
+  currency: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WalletTransactionRecord {
+  walletTransactionId: string;
+  walletAccountId: string;
+  userId: string;
+  type: string;
+  direction: 'CREDIT' | 'DEBIT';
+  title: string;
+  amount: number;
+  currency: string;
+  method: string | null;
+  paymentMethodId: string | null;
+  description: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WalletTopUpRequest {
+  amount: number;
+  method: 'APPLE_PAY' | 'ALIPAY' | 'SAVED_CARD';
+  paymentMethodId?: string;
+}
+
+export const WalletService = {
+  getWallet: async (): Promise<WalletAccount> => {
+    const response = await api.get<ApiResponse<WalletAccount>>('/api/v1/wallet');
+    return unwrap(response);
+  },
+  listTransactions: async (): Promise<WalletTransactionRecord[]> => {
+    const response = await api.get<ApiResponse<WalletTransactionRecord[]>>('/api/v1/wallet/transactions');
+    return unwrap(response);
+  },
+  topUp: async (payload: WalletTopUpRequest): Promise<{ wallet: WalletAccount; transaction: WalletTransactionRecord }> => {
+    const response = await api.post<ApiResponse<{ wallet: WalletAccount; transaction: WalletTransactionRecord }>>(
+      '/api/v1/wallet/top-ups',
+      payload
+    );
     return unwrap(response);
   },
 };
@@ -651,7 +703,7 @@ export interface IssueRecord {
   reporterUserId: string;
   bookingId: string | null;
   scooterId: string | null;
-  issueType?: 'FAULT_REPORT' | 'COMPLAINT' | 'OTHER';
+  issueType?: 'FAULT_REPORT' | 'COMPLAINT' | 'LOW_BATTERY' | 'OTHER';
   title: string;
   description: string;
   priority: 'MEDIUM' | 'HIGH' | 'URGENT' | 'LOW' | 'CRITICAL';

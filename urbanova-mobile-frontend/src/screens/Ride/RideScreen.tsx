@@ -301,6 +301,7 @@ const RideScreen = () => {
       <FleetMap
         vehicles={filteredVehicles}
         initialRegion={initialRegion}
+        userLocation={location}
         selectedVehicleId={selectedVehicle?.id}
         onSelectVehicle={handleMapSelect}
       />

@@ -182,7 +182,7 @@ const VehicleDetailScreen: React.FC<Props> = ({ route, navigation }) => {
     });
     if (result.canceled) return;
     setPhotos(
-      result.assets.slice(0, 5).map((asset, index) => ({
+      result.assets.slice(0, 5).map((asset: ImagePicker.ImagePickerAsset, index: number) => ({
         uri: asset.uri,
         name: asset.fileName || `vehicle-fault-${index + 1}.jpg`,
         type: asset.mimeType || 'image/jpeg',
