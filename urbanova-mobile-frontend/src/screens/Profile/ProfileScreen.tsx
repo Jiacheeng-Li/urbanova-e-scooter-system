@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Alert, Linking, Modal, Pressable, ScrollView as RNScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
@@ -15,7 +15,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useSettingsStore } from '@store/useSettingsStore';
 import { AuthService } from '@services/api';
 import { validatePasswordStrength } from '@utils/security';
-import { getEligibilityHeadline, isUserFacingPromotionType } from '@utils/promotions';
+import { getEligibilityHeadline, getUserFacingEligibilityType } from '@utils/promotions';
 import { LinearGradient } from 'expo-linear-gradient';
 
 const SUPPORT_EMAIL = 'support@urbanova.app';
@@ -270,7 +270,7 @@ const ProfileScreen = () => {
 
   const discountEligibility = usageSummaryQuery.data?.discountEligibility;
   const promotionHeadline = getEligibilityHeadline(discountEligibility);
-  const userFacingPromotionType = discountEligibility?.eligibleTypes?.find(isUserFacingPromotionType);
+  const userFacingPromotionType = getUserFacingEligibilityType(discountEligibility);
 
   return (
     <>
@@ -285,7 +285,10 @@ const ProfileScreen = () => {
               <Text style={styles.value}>Bookings: {usageSummaryQuery.data.bookingCount}</Text>
               <Text style={styles.value}>Hours used: {usageSummaryQuery.data.hoursUsed}</Text>
               <Text style={styles.value}>Total spent: GBP {usageSummaryQuery.data.totalSpent}</Text>
-              <Text style={styles.value}>7-day usage: {usageSummaryQuery.data.hoursLast7Days} hours</Text>
+              <Text style={styles.value}>
+                7-day usage: {Number(usageSummaryQuery.data.hoursLast7Days || 0).toFixed(1)} /{' '}
+                {Number(discountEligibility?.frequentUserThresholdHoursPerWeek || usageSummaryQuery.data.frequentUserThresholdHoursPerWeek || 8).toFixed(0)} hours
+              </Text>
               <Text style={styles.value}>Age group: {discountEligibility?.ageGroup || profile.ageGroup || 'Not set'}</Text>
               <Text style={styles.value}>
                 Promotion: {promotionHeadline}

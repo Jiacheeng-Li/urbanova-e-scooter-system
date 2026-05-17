@@ -1,7 +1,11 @@
 import { API_BASE_URL } from '@services/api';
 
 export const getApiErrorMessage = (error: any, fallback: string) => {
-  const serverMessage = error?.response?.data?.error?.message || error?.response?.data?.message;
+  const rawServerMessage = error?.response?.data?.error?.message || error?.response?.data?.message;
+  const serverMessage =
+    typeof rawServerMessage === 'string' && !/unhandled server error/i.test(rawServerMessage)
+      ? rawServerMessage
+      : '';
   if (serverMessage) {
     return serverMessage;
   }

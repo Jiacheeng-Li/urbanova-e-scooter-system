@@ -9,7 +9,8 @@
     "web": "expo start --web",
     "prebuild": "expo prebuild",
     "android:run": "expo run:android",
-    "ios:run": "expo run:ios"
+    "ios:run": "expo run:ios",
+    "postinstall": "node scripts/patch-baidu-map.js"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.1.1",
@@ -31,6 +32,7 @@
     "expo-location": "~19.0.8",
     "expo-status-bar": "~3.0.9",
     "expo-system-ui": "~6.0.9",
+    "prop-types": "^15.8.1",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-native": "0.81.5",

@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import {
   ActivityIndicator,
@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import ScreenContainer from '@components/ScreenContainer';
 import PrimaryButton from '@components/PrimaryButton';
+import PolicyAgreement from '@components/PolicyAgreement';
 import { RootStackParamList } from '@models/index';
 import { colors } from '@theme/colors';
 import { AuthService, PaymentMethodService } from '@services/api';
@@ -48,6 +49,8 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
   const [emailVerified, setEmailVerified] = useState(false);
   const [sendingCode, setSendingCode] = useState(false);
   const [verifyingCode, setVerifyingCode] = useState(false);
+  const [policyAccepted, setPolicyAccepted] = useState(false);
+  const [policyVisible, setPolicyVisible] = useState(false);
 
   const [bindCard, setBindCard] = useState(false);
   const [cardBrand, setCardBrand] = useState('VISA');
@@ -137,6 +140,10 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
     }
     if (!emailVerified) {
       setError('Please verify your email before signing up');
+      return;
+    }
+    if (!policyAccepted) {
+      setError('Please review and accept the URBANOVA Rider Policy before signing up');
       return;
     }
     if (birthDate.trim() && !/^\d{4}-\d{2}-\d{2}$/.test(birthDate.trim())) {
@@ -386,6 +393,17 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
             />
           </>
         ) : null}
+
+        <PolicyAgreement
+          accepted={policyAccepted}
+          visible={policyVisible}
+          onToggle={() => {
+            setPolicyAccepted((prev) => !prev);
+            setError('');
+          }}
+          onOpen={() => setPolicyVisible(true)}
+          onClose={() => setPolicyVisible(false)}
+        />
 
         <PrimaryButton label={loading ? '' : 'Sign up'} onPress={handleRegister} disabled={loading || !emailVerified} />
         {loading && <ActivityIndicator color={colors.lime} style={styles.loader} />}

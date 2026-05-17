@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 
 import { DiscountService } from '@services/api';
 import { useAuthStore } from '@store/useAuthStore';
-import { getEligibilityHeadline, isUserFacingPromotionType } from '@utils/promotions';
+import { getEligibilityHeadline, getUserFacingEligibilityType } from '@utils/promotions';
 
 const PROMOTION_PROMPT_PREFIX = 'urbanova:promotion-prompt:';
 
@@ -46,13 +46,14 @@ const PromotionGate: React.FC<PromotionGateProps> = ({ onOpenProfile }) => {
       return;
     }
 
-    const eligibleType = eligibility.eligibleTypes?.find(isUserFacingPromotionType);
-    if (!eligibleType || !eligibility.estimatedPercentage) {
+    const eligibleType = getUserFacingEligibilityType(eligibility);
+    const estimatedPercentage = Number(eligibility.estimatedPercentage || 0);
+    if (!eligibleType && estimatedPercentage <= 0) {
       return;
     }
 
     inFlight.current = true;
-    const key = `${PROMOTION_PROMPT_PREFIX}${userId}:${eligibleType}:${eligibility.estimatedPercentage}`;
+    const key = `${PROMOTION_PROMPT_PREFIX}${userId}:${eligibleType || 'discount'}:${estimatedPercentage}`;
     AsyncStorage.getItem(key)
       .then((shown) => {
         if (shown) {
@@ -61,7 +62,7 @@ const PromotionGate: React.FC<PromotionGateProps> = ({ onOpenProfile }) => {
         return AsyncStorage.setItem(key, '1').then(() => {
           Alert.alert(
             'Promotion applied',
-            `${getEligibilityHeadline(eligibility)} is active. Your eligible hire options and wallet prices will show the discount automatically.`
+            `${getEligibilityHeadline(eligibility)} is active. Frequent rider eligibility is based on 8 hours of usage in the last 7 days. Eligible hire options and wallet prices will show the discount automatically.`
           );
         });
       })

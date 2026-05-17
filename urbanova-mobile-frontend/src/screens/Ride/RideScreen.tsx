@@ -60,7 +60,6 @@ const RideScreen = () => {
   const { passes, isLoading: passesLoading } = usePasses();
   const [selectedHireOption, setSelectedHireOption] = useState<string | null>(null);
   const [selectedQuote, setSelectedQuote] = useState<PriceQuote | null>(null);
-  const [quoteLoading, setQuoteLoading] = useState(false);
   const [submittingId, setSubmittingId] = useState<string | null>(null);
   const [qrModalVisible, setQrModalVisible] = useState(false);
   const [qrLoading, setQrLoading] = useState(false);
@@ -71,6 +70,8 @@ const RideScreen = () => {
   const sheetOffset = useRef(SHEET_SNAP_POINTS.collapsed);
   const translateY = useRef(new Animated.Value(SHEET_SNAP_POINTS.collapsed)).current;
   const listAtTop = useRef(true);
+  const vehicleListRef = useRef<FlatList<any>>(null);
+  const quoteRequestRef = useRef('');
 
   const animateSheet = (nextState: 'collapsed' | 'expanded') => {
     const toValue = SHEET_SNAP_POINTS[nextState];
@@ -178,12 +179,17 @@ const RideScreen = () => {
   useEffect(() => {
     const selectedPlan = passes.find((plan) => plan.id === selectedHireOption);
     if (!selectedVehicle || !selectedPlan?.code) {
+      quoteRequestRef.current = '';
       setSelectedQuote(null);
       return;
     }
 
+    const quoteKey = `${selectedVehicle.id}:${selectedPlan.code}`;
+    if (quoteRequestRef.current === quoteKey) {
+      return;
+    }
+    quoteRequestRef.current = quoteKey;
     let isMounted = true;
-    setQuoteLoading(true);
     HireOptionService.quote({
       scooterId: selectedVehicle.id,
       hireOptionCode: selectedPlan.code,
@@ -198,16 +204,11 @@ const RideScreen = () => {
           setSelectedQuote(null);
         }
       })
-      .finally(() => {
-        if (isMounted) {
-          setQuoteLoading(false);
-        }
-      });
 
     return () => {
       isMounted = false;
     };
-  }, [passes, selectedHireOption, selectedVehicle]);
+  }, [passes, selectedHireOption, selectedVehicle?.id]);
 
   const handleReserve = async (vehicle: any) => {
     if (!selectedHireOption) {
@@ -292,7 +293,13 @@ const RideScreen = () => {
     const nextVehicle = filteredVehicles.find((v) => v.id === vehicleId);
     if (nextVehicle) {
       setSelectedVehicle(nextVehicle);
-      navigation.navigate('VehicleDetail', { vehicleId: nextVehicle.id });
+      animateSheet('expanded');
+      const vehicleIndex = filteredVehicles.findIndex((vehicle) => vehicle.id === nextVehicle.id);
+      if (vehicleIndex >= 0) {
+        requestAnimationFrame(() => {
+          vehicleListRef.current?.scrollToIndex({ index: vehicleIndex, animated: true, viewPosition: 0.08 });
+        });
+      }
     }
   };
 
@@ -367,6 +374,7 @@ const RideScreen = () => {
         {passesLoading && <ActivityIndicator color={colors.textSecondary} style={styles.loader} />}
         <View style={styles.vehicleList}>
           <FlatList
+            ref={vehicleListRef}
             data={filteredVehicles}
             keyExtractor={(item) => item.id}
             renderItem={({ item }) => (
@@ -383,6 +391,11 @@ const RideScreen = () => {
             contentContainerStyle={{ paddingBottom: 16 }}
             onScroll={handleVehicleListScroll}
             scrollEventThrottle={16}
+            onScrollToIndexFailed={({ index }) => {
+              setTimeout(() => {
+                vehicleListRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.08 });
+              }, 250);
+            }}
             ListEmptyComponent={!isLoading ? <Text style={styles.emptyText}>No vehicles available yet.</Text> : null}
           />
         </View>

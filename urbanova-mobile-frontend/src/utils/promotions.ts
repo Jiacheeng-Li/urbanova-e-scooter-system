@@ -5,20 +5,74 @@ const PROMOTION_LABELS: Record<string, string> = {
   FIRST_RIDE: 'New rider discount',
   YOUTH: 'Youth discount',
   STUDENT: 'Youth discount',
+  UNDER_18_RIDER: 'Youth discount',
+  U18_RIDER: 'Youth discount',
   SENIOR: 'Senior discount',
   LOYALTY: 'Frequent rider discount',
   FREQUENT_USER: 'Frequent rider discount',
   AGE_BASED: 'Age-based discount',
 };
 
-const ALLOWED_PROMOTION_PATTERNS = ['NEW', 'FIRST', 'YOUTH', 'STUDENT', 'SENIOR', 'LOYAL', 'FREQUENT'];
+const ALLOWED_PROMOTION_PATTERNS = [
+  'NEW',
+  'FIRST',
+  'YOUTH',
+  'STUDENT',
+  'UNDER_18',
+  'U18',
+  'SENIOR',
+  'AGE_60',
+  'AGE_65',
+  'LOYAL',
+  'FREQUENT',
+];
+
+const normalizePromotionType = (type?: string) => (type || '').toUpperCase();
 
 export const isUserFacingPromotionType = (type?: string) => {
   if (!type) {
     return false;
   }
-  const normalized = type.toUpperCase();
+  const normalized = normalizePromotionType(type);
   return ALLOWED_PROMOTION_PATTERNS.some((pattern) => normalized.includes(pattern));
+};
+
+export const getUserFacingEligibilityType = (eligibility?: DiscountEligibility | null) => {
+  const explicit = eligibility?.eligibleTypes?.find(isUserFacingPromotionType);
+  if (explicit) {
+    return explicit;
+  }
+  const age = eligibility?.age;
+  if (typeof age === 'number') {
+    if (age >= 12 && age <= 17) {
+      return 'UNDER_18_RIDER';
+    }
+    if (age < 22) {
+      return 'YOUTH';
+    }
+    if (age >= 60) {
+      return 'SENIOR';
+    }
+  }
+  const activePolicy = eligibility?.activePolicies?.find((policy) => {
+    if (policy.active === false || policy.activeNow === false) {
+      return false;
+    }
+    if (!isUserFacingPromotionType(policy.policyCode) && !isUserFacingPromotionType(policy.category)) {
+      return false;
+    }
+    if (typeof age !== 'number') {
+      return policy.minAge == null && policy.maxAge == null;
+    }
+    if (policy.minAge != null && age < policy.minAge) {
+      return false;
+    }
+    if (policy.maxAge != null && age > policy.maxAge) {
+      return false;
+    }
+    return true;
+  });
+  return activePolicy?.policyCode;
 };
 
 export const getPromotionLabel = (type?: string) => {
@@ -33,7 +87,13 @@ export const getPromotionLabel = (type?: string) => {
   if (normalized.includes('SENIOR') || normalized.includes('65')) {
     return 'Senior discount';
   }
-  if (normalized.includes('YOUTH') || normalized.includes('STUDENT') || normalized.includes('22')) {
+  if (
+    normalized.includes('YOUTH') ||
+    normalized.includes('STUDENT') ||
+    normalized.includes('UNDER_18') ||
+    normalized.includes('U18') ||
+    normalized.includes('22')
+  ) {
     return 'Youth discount';
   }
   if (normalized.includes('NEW') || normalized.includes('FIRST')) {
@@ -82,15 +142,19 @@ export const getQuoteDiscountSummary = (quote?: PriceQuote | null) => {
 };
 
 export const getEligibilityHeadline = (eligibility?: DiscountEligibility | null) => {
-  const firstEligibleType = eligibility?.eligibleTypes?.find(isUserFacingPromotionType);
+  const firstEligibleType = getUserFacingEligibilityType(eligibility);
   if (isUserFacingPromotionType(firstEligibleType)) {
     return getPromotionLabel(firstEligibleType);
   }
-  if (eligibility?.age && eligibility.age > 65) {
+  if (eligibility?.age && eligibility.age >= 60) {
     return 'Senior discount';
   }
   if (eligibility?.age && eligibility.age < 22) {
     return 'Youth discount';
+  }
+  const threshold = Number(eligibility?.frequentUserThresholdHoursPerWeek || 8);
+  if (Number(eligibility?.hoursLast7Days || 0) >= threshold) {
+    return 'Frequent rider discount';
   }
   return 'No active promotion yet';
 };

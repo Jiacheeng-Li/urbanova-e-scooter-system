@@ -18,8 +18,9 @@ import {
   WalletService,
 } from '@services/api';
 import { formatCardNumberForInput, maskCard, parseExpiry, sanitizeCardNumber } from '@utils/security';
-import { getEligibilityHeadline, getQuoteDiscountSummary, isUserFacingPromotionType } from '@utils/promotions';
+import { getEligibilityHeadline, getQuoteDiscountSummary, getUserFacingEligibilityType } from '@utils/promotions';
 import { useAuthStore } from '@store/useAuthStore';
+import { getApiErrorMessage } from '@utils/apiError';
 
 const TOP_UP_AMOUNTS = [5, 10, 20, 35];
 const QUICK_PAYMENT_METHODS = [
@@ -170,7 +171,7 @@ const WalletScreen = () => {
 
   const paymentMethodLabel = selectedMethod ? maskCard(selectedMethod.brand, selectedMethod.last4) : 'No card selected';
   const selectedTopUpLabel = QUICK_PAYMENT_METHODS.find((item) => item.id === selectedTopUpMethod)?.title || 'Unknown method';
-  const userFacingPromotionType = discountEligibilityQuery.data?.eligibleTypes?.find(isUserFacingPromotionType);
+  const userFacingPromotionType = getUserFacingEligibilityType(discountEligibilityQuery.data);
 
   const topUpMutation = useMutation({
     mutationFn: () =>
@@ -192,7 +193,7 @@ const WalletScreen = () => {
       );
     },
     onError: (error: any) => {
-      Alert.alert('Top up failed', error?.response?.data?.error?.message || error?.message || 'Unable to top up wallet.');
+      Alert.alert('Top up failed', getApiErrorMessage(error, 'Unable to top up wallet.'));
     },
   });
 

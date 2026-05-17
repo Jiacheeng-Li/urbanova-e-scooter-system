@@ -15,7 +15,7 @@ export const useTransactions = () => {
         description: tx.description || tx.method?.replaceAll('_', ' ') || tx.type,
         date: tx.createdAt,
         amount: Number(tx.amount || 0),
-        type: Number(tx.amount || 0) >= 0 ? 'credit' : 'debit',
+        type: tx.direction === 'DEBIT' ? 'debit' : 'credit',
       }));
     },
     enabled: !!userId,

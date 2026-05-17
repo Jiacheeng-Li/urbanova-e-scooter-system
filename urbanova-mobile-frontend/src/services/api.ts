@@ -1,4 +1,4 @@
-﻿import axios, { AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
+import axios, { AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
@@ -143,6 +143,7 @@ export interface UsageSummaryData {
   hoursUsed: number;
   totalSpent: number;
   hoursLast7Days: number;
+  frequentUserThresholdHoursPerWeek?: number;
   discountEligibility: DiscountEligibility;
 }
 
@@ -807,6 +808,7 @@ export interface DiscountEligibility {
   ageGroup?: string | null;
   completedBookingCount?: number;
   hoursLast7Days?: number;
+  frequentUserThresholdHoursPerWeek?: number;
   eligibleTypes?: string[];
   estimatedPercentage?: number;
   activePolicies?: PromotionPolicy[];

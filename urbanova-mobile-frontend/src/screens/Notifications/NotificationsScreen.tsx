@@ -8,6 +8,7 @@ import { NotificationRecord, NotificationService } from '@services/api';
 import { colors, radii } from '@theme/index';
 import { formatDate } from '@utils/format';
 import { RootStackParamList } from '@models/index';
+import { useAuthStore } from '@store/useAuthStore';
 
 const getNotificationLabel = (type: string) => {
   switch (type) {
@@ -29,9 +30,11 @@ const getNotificationLabel = (type: string) => {
 
 const NotificationsScreen = () => {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
+  const userId = useAuthStore((state) => state.user?.userId);
   const notificationsQuery = useQuery({
-    queryKey: ['notifications'],
+    queryKey: ['notifications', userId ?? 'guest'],
     queryFn: NotificationService.listMine,
+    enabled: !!userId,
   });
 
   const markReadMutation = useMutation({
@@ -124,14 +127,14 @@ const styles = StyleSheet.create({
     color: colors.ink,
     backgroundColor: colors.lime,
     borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
     fontSize: 11,
     fontWeight: '800',
-    overflow: 'hidden',
-    includeFontPadding: false,
     textAlignVertical: 'center',
-    lineHeight: 14,
+    lineHeight: 16,
+    minWidth: 40,
+    textAlign: 'center',
   },
   cardTitle: {
     color: colors.textPrimary,
