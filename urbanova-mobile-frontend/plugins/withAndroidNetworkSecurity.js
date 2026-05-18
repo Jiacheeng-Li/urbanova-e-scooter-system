@@ -11,7 +11,7 @@ const NETWORK_SECURITY_XML = `<?xml version="1.0" encoding="utf-8"?>
     </trust-anchors>
   </base-config>
   <domain-config cleartextTrafficPermitted="true">
-    <domain includeSubdomains="true">47.109.73.119</domain>
+    <domain includeSubdomains="true">${BackendIP}</domain>
   </domain-config>
 </network-security-config>
 `;

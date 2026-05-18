@@ -80,15 +80,15 @@
       ]
     ],
     "extra": {
-      "apiBaseUrl": "http://47.109.73.119:8080",
+      "apiBaseUrl": "http://${BackendIP}:8080",
       "supportEmail": "support@urbanova.app",
       "enableLabs": true,
       "baiduMap": {
-        "androidApiKey": "ZUJeK4LnrCSXsAC2VzVkauuBiqzgdYsc",
-        "iosApiKey": "LWxxRu6wUcDFRhD0qKQEobz1mPD1sGzt"
+        "androidApiKey": "",
+        "iosApiKey": ""
       },
       "eas": {
-        "projectId": "bba7ae47-c9ce-4df8-b5a3-75f87b85fb39"
+        "projectId": ""
       }
     },
     "web": {

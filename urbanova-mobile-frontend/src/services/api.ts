@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
-const PUBLIC_API_BASE_URL = 'http://47.109.73.119:8080';
+const PUBLIC_API_BASE_URL = 'http://${BackendIP}:8080';
 const constants = Constants as typeof Constants & {
   manifest?: { extra?: { apiBaseUrl?: string } };
   manifest2?: {

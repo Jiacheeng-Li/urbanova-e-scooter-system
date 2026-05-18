@@ -13,8 +13,7 @@ export default defineConfig({
   //代理配置
   server: {
   proxy: {
-    '/urbanova': {  // 代理所有以 /urbanova 开头的请求
-      //target: 'http://47.109.73.119:8080',
+    '/urbanova': {  // 代理所有以 /urbanova 开头的请求,访问同服务器下的后端服务
       target: 'http://localhost:8080',
       changeOrigin: true,
       rewrite: (path) => path.replace(/^\/urbanova/, '')  // ⭐ 关键：去掉 /urbanova 前缀
