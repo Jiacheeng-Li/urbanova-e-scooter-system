@@ -1,9 +1,14 @@
-import React, { useState } from 'react';
-import MapView, { Marker } from 'react-native-maps';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { MapView, Overlay } from 'react-native-baidu-map-yzg-wu';
+
 import { Vehicle } from '@models/index';
-import VehicleMarker from './VehicleMarker';
 import { colors, radii } from '@theme/index';
+import { initializeBaiduMap } from '@services/baiduMap';
+import { Coordinate, toBaiduCoordinate } from '@utils/baiduCoordinates';
+
+const { Marker } = Overlay;
+const BaiduMarker = Marker as any;
 
 interface Props {
   vehicles: Vehicle[];
@@ -15,38 +20,131 @@ interface Props {
   };
   selectedVehicleId?: string | null;
   onSelectVehicle?: (vehicleId: string) => void;
+  userLocation?: Coordinate | null;
 }
 
-const FleetMap: React.FC<Props> = ({ vehicles, initialRegion, selectedVehicleId, onSelectVehicle }) => {
+const longitudeDeltaToZoom = (longitudeDelta: number) => {
+  const safeDelta = Math.max(longitudeDelta, 0.0005);
+  const zoom = Math.log2(360 / safeDelta);
+  return Math.min(20, Math.max(5, Math.round(zoom)));
+};
+
+const FleetMap: React.FC<Props> = ({
+  vehicles,
+  initialRegion,
+  selectedVehicleId,
+  onSelectVehicle,
+  userLocation,
+}) => {
   const [isReady, setIsReady] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
 
+  const targetCenter = useMemo(
+    () =>
+      toBaiduCoordinate({
+        latitude: initialRegion.latitude,
+        longitude: initialRegion.longitude,
+      }),
+    [initialRegion.latitude, initialRegion.longitude]
+  );
+  const targetZoom = useMemo(
+    () => longitudeDeltaToZoom(initialRegion.longitudeDelta),
+    [initialRegion.longitudeDelta]
+  );
+
+  const [mapCenter, setMapCenter] = useState<Coordinate>(targetCenter);
+  const [mapZoom, setMapZoom] = useState(targetZoom);
+  const [hasCenteredOnFleet, setHasCenteredOnFleet] = useState(false);
+
+  useEffect(() => {
+    const result = initializeBaiduMap();
+    if (!result.ready && result.error) {
+      setMapError(result.error);
+    }
+  }, []);
+
+  const baiduUserLocation = useMemo(
+    () => (userLocation ? toBaiduCoordinate(userLocation) : null),
+    [userLocation]
+  );
+  const displayVehicles = useMemo(
+    () =>
+      vehicles.map((vehicle) => ({
+        ...vehicle,
+        baiduLocation: toBaiduCoordinate({
+          latitude: vehicle.lat,
+          longitude: vehicle.lng,
+        }),
+      })),
+    [vehicles]
+  );
+
+  const handleMarkerClick = useMemo(
+    () => (event: { title?: string; position?: { latitude?: number; longitude?: number } } | null | undefined) => {
+      const markerVehicleId = event?.title?.split('|')[0];
+      const matchedByTitle = markerVehicleId
+        ? displayVehicles.find((vehicle) => vehicle.id === markerVehicleId)
+        : undefined;
+      if (matchedByTitle) {
+        onSelectVehicle?.(matchedByTitle.id);
+        return;
+      }
+
+      const latitude = event?.position?.latitude;
+      const longitude = event?.position?.longitude;
+      if (typeof latitude !== 'number' || typeof longitude !== 'number') {
+        return;
+      }
+      const matched = displayVehicles.find((vehicle) => {
+        const latDiff = Math.abs(vehicle.baiduLocation.latitude - latitude);
+        const lngDiff = Math.abs(vehicle.baiduLocation.longitude - longitude);
+        return latDiff < 0.0001 && lngDiff < 0.0001;
+      });
+      if (matched) {
+        onSelectVehicle?.(matched.id);
+      }
+    },
+    [displayVehicles, onSelectVehicle]
+  );
+
+  useEffect(() => {
+    if (vehicles.length > 0 && !hasCenteredOnFleet) {
+      setMapCenter(targetCenter);
+      setMapZoom(targetZoom);
+      setHasCenteredOnFleet(true);
+    }
+  }, [hasCenteredOnFleet, targetCenter, targetZoom, vehicles.length]);
+
   return (
     <View style={styles.container}>
-      <MapView
-        style={styles.map}
-        initialRegion={initialRegion}
-        showsUserLocation
-        showsMyLocationButton
-        scrollEnabled
-        pitchEnabled
-        moveOnMarkerPress={false}
-        loadingEnabled
-        loadingIndicatorColor={colors.lime}
-        onMapReady={() => setIsReady(true)}
-        onError={(event: { nativeEvent?: { message?: string } }) =>
-          setMapError(event?.nativeEvent?.message || 'Unable to render map')
-        }
-      >
-      {vehicles.map((vehicle) => (
-        <VehicleMarker
-          key={vehicle.id}
-          vehicle={vehicle}
-          isSelected={selectedVehicleId === vehicle.id}
-          onPress={onSelectVehicle || (() => {})}
-        />
-      ))}
-      </MapView>
+      {!mapError ? (
+        <MapView
+          style={styles.map}
+          center={mapCenter}
+          zoom={mapZoom}
+          mapType={1}
+          showsUserLocation={!!baiduUserLocation}
+          locationData={baiduUserLocation || undefined}
+          scrollGesturesEnabled
+          zoomGesturesEnabled
+          zoomControlsVisible={false}
+          onMapLoaded={() => setIsReady(true)}
+          onMarkerClick={handleMarkerClick}
+        >
+          {displayVehicles.map((vehicle) => (
+            <BaiduMarker
+              key={vehicle.id}
+              location={vehicle.baiduLocation}
+              title={`${vehicle.id}|${vehicle.name} - ${vehicle.status}`}
+              pinColor={selectedVehicleId === vehicle.id ? 'purple' : 'green'}
+              alpha={selectedVehicleId === vehicle.id ? 1 : 0.92}
+              onClick={() => onSelectVehicle?.(vehicle.id)}
+            />
+          ))}
+        </MapView>
+      ) : (
+        <View style={styles.mapFallback} />
+      )}
       {!isReady && !mapError && (
         <View style={styles.statusOverlay}>
           <ActivityIndicator color={colors.textPrimary} />
@@ -76,21 +174,9 @@ const styles = StyleSheet.create({
   map: {
     flex: 1,
   },
-  marker: {
+  mapFallback: {
+    flex: 1,
     backgroundColor: colors.ink,
-    borderRadius: 16,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderWidth: 2,
-    borderColor: colors.lime,
-  },
-  markerSelected: {
-    transform: [{ scale: 1.1 }],
-    borderColor: colors.warning,
-  },
-  markerText: {
-    color: colors.textPrimary,
-    fontWeight: '700',
   },
   emptyState: {
     position: 'absolute',

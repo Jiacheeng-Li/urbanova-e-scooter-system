@@ -4,6 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Pass } from '@models/index';
 import { colors, radii } from '@theme/index';
 import { formatCurrency } from '@utils/format';
+import { getQuoteDiscountSummary } from '@utils/promotions';
 
 interface Props {
   pass: Pass;
@@ -11,26 +12,37 @@ interface Props {
   isSelected?: boolean;
 }
 
-const PassCard: React.FC<Props> = ({ pass, onSelect, isSelected }) => (
-  <Pressable onPress={() => onSelect?.(pass)} style={styles.wrapper}>
-    <LinearGradient
-      colors={['#0F2217', '#0A0F0A']}
-      style={[styles.card, pass.highlight && styles.highlight, isSelected && styles.selected]}
-    >
-      <View style={styles.row}>
-        <Text style={styles.name}>{pass.name}</Text>
-        {isSelected ? <Text style={styles.selectionPill}>Selected</Text> : null}
-      </View>
-      {pass.highlight ? <Text style={styles.tag}>{pass.highlight}</Text> : null}
-      {pass.quote?.appliedDiscounts?.length ? (
-        <Text style={styles.originalPrice}>{formatCurrency(Number(pass.quote.basePrice || pass.price), 'GBP')}</Text>
-      ) : null}
-      <Text style={styles.price}>{formatCurrency(Number(pass.quote?.finalPrice ?? pass.price), 'GBP')}</Text>
-      <Text style={styles.description}>{Math.round(pass.durationMinutes / 60)} hour package</Text>
-      <Text style={styles.footer}>Billing currency: {pass.currency || 'GBP'}</Text>
-    </LinearGradient>
-  </Pressable>
-);
+const PassCard: React.FC<Props> = ({ pass, onSelect, isSelected }) => {
+  const discountSummary = getQuoteDiscountSummary(pass.quote);
+  const originalPrice = Number(pass.quote?.basePrice || pass.price);
+  const finalPrice = Number(pass.quote?.finalPrice ?? pass.price);
+
+  return (
+    <Pressable onPress={() => onSelect?.(pass)} style={styles.wrapper}>
+      <LinearGradient
+        colors={['#0F2217', '#0A0F0A']}
+        style={[styles.card, pass.highlight && styles.highlight, isSelected && styles.selected]}
+      >
+        <View style={styles.row}>
+          <Text style={styles.name}>{pass.name}</Text>
+          {isSelected ? <Text style={styles.selectionPill}>Selected</Text> : null}
+        </View>
+        {pass.highlight ? <Text style={styles.tag}>{pass.highlight}</Text> : null}
+        <View style={styles.priceRow}>
+          {discountSummary ? <Text style={styles.originalPrice}>{formatCurrency(originalPrice, 'GBP')}</Text> : null}
+          <Text style={styles.price}>{formatCurrency(finalPrice, 'GBP')}</Text>
+        </View>
+        {discountSummary ? (
+          <Text style={styles.discountText}>
+            {discountSummary.percent}% off - {discountSummary.label}
+          </Text>
+        ) : null}
+        <Text style={styles.description}>{Math.round(pass.durationMinutes / 60)} hour package</Text>
+        <Text style={styles.footer}>Billing currency: {pass.currency || 'GBP'}</Text>
+      </LinearGradient>
+    </Pressable>
+  );
+};
 
 const styles = StyleSheet.create({
   wrapper: {
@@ -76,12 +88,24 @@ const styles = StyleSheet.create({
     color: colors.lime,
     fontSize: 26,
     fontWeight: '700',
+  },
+  priceRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'flex-end',
     marginTop: 12,
   },
   originalPrice: {
     color: colors.textMuted,
     textDecorationLine: 'line-through',
-    marginTop: 12,
+    marginRight: 10,
+    marginBottom: 4,
+  },
+  discountText: {
+    color: colors.limeMuted,
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 4,
   },
   description: {
     color: colors.textSecondary,

@@ -1,14 +1,24 @@
 import { useQuery } from '@tanstack/react-query';
-import { walletTransactions } from '@data/transactions';
+import { WalletService } from '@services/api';
 import { WalletTransaction } from '@models/index';
-
-const simulateLatency = async <T>(payload: T, ms = 280): Promise<T> =>
-  new Promise((resolve) => setTimeout(() => resolve(payload), ms));
+import { useAuthStore } from '@store/useAuthStore';
 
 export const useTransactions = () => {
+  const userId = useAuthStore((state) => state.user?.userId);
   const query = useQuery({
-    queryKey: ['wallet-transactions'],
-    queryFn: () => simulateLatency<WalletTransaction[]>(walletTransactions),
+    queryKey: ['wallet-transactions', userId ?? 'guest'],
+    queryFn: async () => {
+      const records = await WalletService.listTransactions();
+      return records.map<WalletTransaction>((tx) => ({
+        id: tx.walletTransactionId,
+        title: tx.title,
+        description: tx.description || tx.method?.replaceAll('_', ' ') || tx.type,
+        date: tx.createdAt,
+        amount: Number(tx.amount || 0),
+        type: tx.direction === 'DEBIT' ? 'debit' : 'credit',
+      }));
+    },
+    enabled: !!userId,
   });
 
   return {

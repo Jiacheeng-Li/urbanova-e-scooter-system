@@ -40,6 +40,33 @@ public final class DomainConstants {
         public static final String ONE_TIME_CARD = "ONE_TIME_CARD";
     }
 
+    public static final class WalletStatus {
+        private WalletStatus() {
+        }
+
+        public static final String ACTIVE = "ACTIVE";
+        public static final String SUSPENDED = "SUSPENDED";
+    }
+
+    public static final class WalletTransactionType {
+        private WalletTransactionType() {
+        }
+
+        public static final String TOP_UP = "TOP_UP";
+        public static final String BOOKING_CHARGE = "BOOKING_CHARGE";
+        public static final String REFUND = "REFUND";
+        public static final String ADJUSTMENT = "ADJUSTMENT";
+    }
+
+    public static final class WalletTopUpMethod {
+        private WalletTopUpMethod() {
+        }
+
+        public static final String APPLE_PAY = "APPLE_PAY";
+        public static final String ALIPAY = "ALIPAY";
+        public static final String SAVED_CARD = "SAVED_CARD";
+    }
+
     public static final class ScooterStatus {
         private ScooterStatus() {
         }
@@ -103,6 +130,7 @@ public final class DomainConstants {
 
         public static final String FAULT_REPORT = "FAULT_REPORT";
         public static final String COMPLAINT = "COMPLAINT";
+        public static final String LOW_BATTERY = "LOW_BATTERY";
         public static final String OTHER = "OTHER";
     }
 

@@ -1,11 +1,13 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -14,6 +16,7 @@ import {
 } from 'react-native';
 import ScreenContainer from '@components/ScreenContainer';
 import PrimaryButton from '@components/PrimaryButton';
+import PolicyAgreement from '@components/PolicyAgreement';
 import { RootStackParamList } from '@models/index';
 import { colors } from '@theme/colors';
 import { AuthService, PaymentMethodService } from '@services/api';
@@ -22,17 +25,32 @@ import { formatCardNumberForInput, parseExpiry, sanitizeCardNumber, validatePass
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Register'>;
 
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const CURRENT_YEAR = new Date().getFullYear();
+const BIRTH_YEARS = Array.from({ length: 100 }, (_, index) => CURRENT_YEAR - index);
+
+const getDayCount = (year: number, monthIndex: number) => new Date(year, monthIndex + 1, 0).getDate();
+
+const formatBirthDate = (year: number, monthIndex: number, day: number) =>
+  `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
 const RegisterScreen: React.FC<Props> = ({ navigation }) => {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [birthDate, setBirthDate] = useState('');
+  const [birthPickerVisible, setBirthPickerVisible] = useState(false);
+  const [pickerYear, setPickerYear] = useState(CURRENT_YEAR - 20);
+  const [pickerMonth, setPickerMonth] = useState(0);
+  const [pickerDay, setPickerDay] = useState(1);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
   const [emailVerified, setEmailVerified] = useState(false);
   const [sendingCode, setSendingCode] = useState(false);
   const [verifyingCode, setVerifyingCode] = useState(false);
+  const [policyAccepted, setPolicyAccepted] = useState(false);
+  const [policyVisible, setPolicyVisible] = useState(false);
 
   const [bindCard, setBindCard] = useState(false);
   const [cardBrand, setCardBrand] = useState('VISA');
@@ -45,6 +63,7 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
   const setAuthPayload = useAuthStore((state) => state.setAuthPayload);
 
   const normalizedEmail = email.trim().toLowerCase();
+  const birthDayOptions = Array.from({ length: getDayCount(pickerYear, pickerMonth) }, (_, index) => index + 1);
 
   const handleSendVerification = async () => {
     if (!normalizedEmail) {
@@ -71,7 +90,12 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
     setVerifyingCode(true);
     setError('');
     try {
-      await AuthService.verifyEmailVerification(normalizedEmail, verificationCode.trim());
+      const result = await AuthService.verifyEmailVerification(normalizedEmail, verificationCode.trim());
+      if (result.verified === false) {
+        setEmailVerified(false);
+        setError(result.message || 'Verification failed. Please check the code and try again.');
+        return;
+      }
       setEmailVerified(true);
       Alert.alert('Email verified', 'You can now complete registration.');
     } catch (err: any) {
@@ -80,6 +104,29 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
     } finally {
       setVerifyingCode(false);
     }
+  };
+
+  const openBirthPicker = () => {
+    if (birthDate) {
+      const parsed = new Date(`${birthDate}T00:00:00`);
+      if (!Number.isNaN(parsed.getTime())) {
+        setPickerYear(parsed.getFullYear());
+        setPickerMonth(parsed.getMonth());
+        setPickerDay(parsed.getDate());
+      }
+    }
+    setBirthPickerVisible(true);
+  };
+
+  const confirmBirthPicker = () => {
+    const selected = new Date(pickerYear, pickerMonth, pickerDay);
+    if (selected.getTime() > Date.now()) {
+      setError('Birth date cannot be in the future.');
+      return;
+    }
+    setBirthDate(formatBirthDate(pickerYear, pickerMonth, Math.min(pickerDay, getDayCount(pickerYear, pickerMonth))));
+    setError('');
+    setBirthPickerVisible(false);
   };
 
   const handleRegister = async () => {
@@ -93,6 +140,10 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
     }
     if (!emailVerified) {
       setError('Please verify your email before signing up');
+      return;
+    }
+    if (!policyAccepted) {
+      setError('Please review and accept the URBANOVA Rider Policy before signing up');
       return;
     }
     if (birthDate.trim() && !/^\d{4}-\d{2}-\d{2}$/.test(birthDate.trim())) {
@@ -243,17 +294,9 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
         />
 
         <Text style={styles.label}>Birth date (optional)</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="YYYY-MM-DD"
-          placeholderTextColor={colors.textMuted}
-          keyboardType="numbers-and-punctuation"
-          value={birthDate}
-          onChangeText={(text) => {
-            setBirthDate(text.slice(0, 10));
-            setError('');
-          }}
-        />
+        <Pressable style={styles.input} onPress={openBirthPicker}>
+          <Text style={birthDate ? styles.dateText : styles.placeholderText}>{birthDate || 'Select birth date'}</Text>
+        </Pressable>
         <Text style={styles.fieldHint}>Used for age checks and automatic promotions. Riders under 12 cannot book.</Text>
 
         <Text style={styles.label}>Password</Text>
@@ -351,6 +394,17 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
           </>
         ) : null}
 
+        <PolicyAgreement
+          accepted={policyAccepted}
+          visible={policyVisible}
+          onToggle={() => {
+            setPolicyAccepted((prev) => !prev);
+            setError('');
+          }}
+          onOpen={() => setPolicyVisible(true)}
+          onClose={() => setPolicyVisible(false)}
+        />
+
         <PrimaryButton label={loading ? '' : 'Sign up'} onPress={handleRegister} disabled={loading || !emailVerified} />
         {loading && <ActivityIndicator color={colors.lime} style={styles.loader} />}
 
@@ -360,10 +414,50 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
             <Text style={styles.link}> Back to sign in</Text>
           </Text>
         </TouchableOpacity>
+
+        <Modal visible={birthPickerVisible} transparent animationType="fade" onRequestClose={() => setBirthPickerVisible(false)}>
+          <View style={styles.modalBackdrop}>
+            <View style={styles.pickerCard}>
+              <Text style={styles.pickerTitle}>Select birth date</Text>
+              <View style={styles.pickerHeader}>
+                <Text style={styles.pickerHeaderText}>Year</Text>
+                <Text style={styles.pickerHeaderText}>Month</Text>
+                <Text style={styles.pickerHeaderText}>Day</Text>
+              </View>
+              <View style={styles.pickerRow}>
+                <ScrollView style={styles.pickerColumn} showsVerticalScrollIndicator={false}>
+                  {BIRTH_YEARS.map((year) => (
+                    <PickerItem key={year} label={`${year}`} selected={pickerYear === year} onPress={() => setPickerYear(year)} />
+                  ))}
+                </ScrollView>
+                <ScrollView style={styles.pickerColumn} showsVerticalScrollIndicator={false}>
+                  {MONTHS.map((month, index) => (
+                    <PickerItem key={month} label={month} selected={pickerMonth === index} onPress={() => setPickerMonth(index)} />
+                  ))}
+                </ScrollView>
+                <ScrollView style={styles.pickerColumn} showsVerticalScrollIndicator={false}>
+                  {birthDayOptions.map((day) => (
+                    <PickerItem key={day} label={`${day}`} selected={pickerDay === day} onPress={() => setPickerDay(day)} />
+                  ))}
+                </ScrollView>
+              </View>
+              <View style={styles.pickerActions}>
+                <PrimaryButton label="Close" onPress={() => setBirthPickerVisible(false)} style={styles.pickerButton} />
+                <PrimaryButton label="Confirm" onPress={confirmBirthPicker} style={styles.pickerButton} />
+              </View>
+            </View>
+          </View>
+        </Modal>
       </ScreenContainer>
     </KeyboardAvoidingView>
   );
 };
+
+const PickerItem = ({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) => (
+  <Pressable style={[styles.pickerItem, selected && styles.pickerItemSelected]} onPress={onPress}>
+    <Text style={[styles.pickerItemLabel, selected && styles.pickerItemLabelSelected]}>{label}</Text>
+  </Pressable>
+);
 
 const styles = StyleSheet.create({
   content: {
@@ -393,6 +487,14 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     fontSize: 16,
     backgroundColor: colors.card,
+  },
+  dateText: {
+    color: colors.textPrimary,
+    fontSize: 16,
+  },
+  placeholderText: {
+    color: colors.textMuted,
+    fontSize: 16,
   },
   cardBindHeader: {
     marginTop: 16,
@@ -491,6 +593,71 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     textAlign: 'center',
     fontSize: 14,
+  },
+  modalBackdrop: {
+    flex: 1,
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    paddingHorizontal: 20,
+  },
+  pickerCard: {
+    borderRadius: 22,
+    padding: 18,
+    backgroundColor: colors.graphite,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+  },
+  pickerTitle: {
+    color: colors.textPrimary,
+    fontSize: 20,
+    fontWeight: '800',
+  },
+  pickerHeader: {
+    flexDirection: 'row',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  pickerHeaderText: {
+    flex: 1,
+    color: colors.textSecondary,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  pickerRow: {
+    flexDirection: 'row',
+    height: 220,
+  },
+  pickerColumn: {
+    flex: 1,
+    marginHorizontal: 4,
+  },
+  pickerItem: {
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  pickerItemSelected: {
+    backgroundColor: 'rgba(131,111,255,0.22)',
+    borderWidth: 1,
+    borderColor: colors.lime,
+  },
+  pickerItemLabel: {
+    color: colors.textSecondary,
+    fontWeight: '600',
+  },
+  pickerItemLabelSelected: {
+    color: colors.textPrimary,
+  },
+  pickerActions: {
+    flexDirection: 'row',
+    marginTop: 14,
+    gap: 10,
+  },
+  pickerButton: {
+    flex: 1,
   },
 });
 

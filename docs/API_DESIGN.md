@@ -133,6 +133,9 @@ Failure:
 | PATCH | `/payment-methods/{paymentMethodId}` | Bearer | Update expiry / label / default |
 | DELETE | `/payment-methods/{paymentMethodId}` | Bearer | Mark payment method as removed |
 | POST | `/payment-methods/{paymentMethodId}/default` | Bearer | Set default card |
+| GET | `/wallet` | Bearer | Current user's wallet account and balance |
+| GET | `/wallet/transactions` | Bearer | Current user's wallet transaction history |
+| POST | `/wallet/top-ups` | Bearer | Create wallet top-up transaction for current user |
 
 ### 3.3 Pricing, Hire Options, Discounts
 
@@ -223,6 +226,7 @@ Failure:
 | POST | `/issues/{issueId}/photos` | Bearer | Upload issue photos |
 | GET | `/issues/{issueId}/photos/{photoId}` | Bearer | Download issue photo |
 | GET | `/admin/issues` | MANAGER | Admin issue queue |
+| GET | `/admin/issues/open-by-priority` | MANAGER | Query issues by priority excluding `CLOSED` items |
 | PATCH | `/admin/issues/{issueId}/priority` | MANAGER | Update issue priority |
 | PATCH | `/admin/issues/{issueId}/status` | MANAGER | Update issue status |
 | POST | `/admin/issues/{issueId}/resolve` | MANAGER | Resolve issue |
@@ -370,6 +374,7 @@ Current implementation:
 Behavior:
 - without bearer token: base price only
 - with bearer token: applies currently active promotion policies
+- frequent-user discount is also applied when the authenticated user's `hoursLast7Days >= 8.00`
 - policy stacking is capped by backend business logic
 
 `POST /api/v1/admin/promotion-policies`
@@ -582,11 +587,18 @@ Photo rules:
 - supported formats: JPEG, PNG, WEBP
 - each image must be 5 MB or smaller
 
+`GET /api/v1/admin/issues/open-by-priority?priority=LOW`
+
+- returns issues with the requested priority
+- excludes issues whose status is `CLOSED`
+
 Issue resolution behavior:
 - when email delivery is configured, a successful issue submission also sends a receipt email to the reporting user
 - `POST /api/v1/admin/issues/{issueId}/resolve` sets the issue to `RESOLVED`
 - `PATCH /api/v1/admin/issues/{issueId}/status` with `RESOLVED` or `CLOSED` also counts as operationally resolved
 - if the issue is linked to a scooter currently in `FAULT`, `UNDER_REPAIR`, `MAINTENANCE`, or `UNAVAILABLE`, the scooter is automatically restored to `AVAILABLE` or `LOW_BATTERY` depending on remaining battery
+- when scooter battery drops below the low-battery threshold during lifecycle processing, the backend creates a `LOW_BATTERY` issue with priority `LOW`, title `Low battery`, and description `Low battery detected. Please replace battery.`
+- when a manager starts charging a scooter with `POST /api/v1/admin/scooters/{scooterId}/charge`, any open low-battery issue for that scooter is automatically moved to `CLOSED`
 
 ### 4.8 Analytics
 
@@ -595,6 +607,9 @@ Supported query params:
 - `endDate=YYYY-MM-DD`
 
 Current implementation uses recorded `payments` rows as revenue source.
+
+`GET /api/v1/admin/analytics/usage/frequent-users` currently classifies a frequent user by:
+- `hoursLast7Days >= 8.00`
 
 ## 5. State and Behavior Notes
 
@@ -615,14 +630,16 @@ Current implemented transitions:
 - manager charge action -> `CHARGING` -> scheduler completes -> `AVAILABLE`
 - while scooter is `IN_USE`, battery drains at the configured lifecycle rate (current default: `1%` per minute)
 - when battery drops below `20%`, the backend creates manager notifications with type `SCOOTER_LOW_BATTERY`
+- the same low-battery event also creates a low-priority `LOW_BATTERY` issue for that scooter if there is no existing non-closed low-battery issue
+- starting charge from the admin charge endpoint automatically closes the linked low-battery issue
 - each scooter has a stable `qrCodeId`, and the backend can resolve or render a QR code from it
 - manager endpoints can directly set `AVAILABLE`, `RESERVED`, `IN_USE`, `MAINTENANCE`, `UNAVAILABLE`, `FAULT`, `UNDER_REPAIR`, `LOW_BATTERY`, `CHARGING`
 
 ### 5.3 Issue
 
 Current implemented values:
-- issueType: `FAULT_REPORT`, `COMPLAINT`, `OTHER`
-- priority: `MEDIUM`, `HIGH`, `URGENT`
+- issueType: `FAULT_REPORT`, `COMPLAINT`, `LOW_BATTERY`, `OTHER`
+- priority: `LOW`, `MEDIUM`, `HIGH`, `URGENT`, `CRITICAL`
 - status: `OPEN`, `IN_REVIEW`, `RESOLVED`, `CLOSED`
 
 ## 6. Security and Concurrency Notes
@@ -668,3 +685,29 @@ This is how the current backend addresses ID 3 and ID 23.
 | 23 | transactional reservation, scooter versioning, stored audit/event records |
 | 24 | frontend concern, no backend endpoint |
 | 25 | frontend concern, no backend endpoint |
+`GET /api/v1/wallet`
+
+Response fields:
+- `walletAccountId`
+- `userId`
+- `balance`
+- `currency`
+- `status`
+- `createdAt`
+- `updatedAt`
+
+`POST /api/v1/wallet/top-ups`
+
+```json
+{
+  "amount": 20,
+  "method": "SAVED_CARD",
+  "paymentMethodId": "PM-1234567890"
+}
+```
+
+Notes:
+- wallet access is always scoped to the authenticated user
+- `method` must be `APPLE_PAY`, `ALIPAY`, or `SAVED_CARD`
+- `paymentMethodId` is required only when `method=SAVED_CARD`
+- transaction history is also scoped to the authenticated user and never returns another user's balance or entries

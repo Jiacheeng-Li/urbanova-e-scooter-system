@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getCurrentLocation, LocationResult } from '@services/location';
+import { getCurrentLocation, LocationResult, watchBestLocation } from '@services/location';
 
 export const useCurrentLocation = () => {
   const [location, setLocation] = useState<LocationResult | null>(null);
@@ -24,8 +24,22 @@ export const useCurrentLocation = () => {
 
     fetchLocation();
 
+    const subscriptionPromise = watchBestLocation(
+      (coords) => {
+        if (mounted) {
+          setLocation(coords);
+        }
+      },
+      (error) => {
+        console.warn('Location watch error', error);
+      }
+    );
+
     return () => {
       mounted = false;
+      subscriptionPromise.then((subscription) => {
+        subscription?.remove();
+      });
     };
   }, []);
 

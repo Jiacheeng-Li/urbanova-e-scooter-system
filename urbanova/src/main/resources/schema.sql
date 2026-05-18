@@ -184,6 +184,38 @@ CREATE TABLE IF NOT EXISTS payment_methods (
     KEY idx_payment_methods_user_id (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS wallet_accounts (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    wallet_account_id VARCHAR(40) NOT NULL,
+    user_id VARCHAR(36) NOT NULL,
+    currency VARCHAR(3) NOT NULL DEFAULT 'GBP',
+    status VARCHAR(20) NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_wallet_accounts_wallet_account_id (wallet_account_id),
+    UNIQUE KEY uk_wallet_accounts_user_id (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS wallet_transactions (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    wallet_transaction_id VARCHAR(40) NOT NULL,
+    wallet_account_id VARCHAR(40) NOT NULL,
+    user_id VARCHAR(36) NOT NULL,
+    type VARCHAR(30) NOT NULL,
+    amount DECIMAL(10,2) NOT NULL,
+    method VARCHAR(30) NULL,
+    payment_method_id VARCHAR(40) NULL,
+    description VARCHAR(255) NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_wallet_transactions_wallet_transaction_id (wallet_transaction_id),
+    KEY idx_wallet_transactions_wallet_account_id (wallet_account_id),
+    KEY idx_wallet_transactions_user_id (user_id),
+    KEY idx_wallet_transactions_created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS bookings (
     id BIGINT NOT NULL AUTO_INCREMENT,
     booking_id VARCHAR(32) NOT NULL,

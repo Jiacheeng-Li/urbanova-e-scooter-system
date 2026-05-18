@@ -175,11 +175,8 @@ public class BookingServiceImpl implements BookingService {
     public CancelBookingVo cancelBooking(String userId, String bookingId, CancelBookingRequest request) {
         BookingEntity booking = requireAccessibleBooking(userId, DomainConstants.ROLE_CUSTOMER, bookingId);
         if (DomainConstants.BookingStatus.CANCELLED.equals(booking.getStatus())) {
-            CancelBookingVo alreadyCancelled = new CancelBookingVo();
-            alreadyCancelled.setBookingId(booking.getBookingId());
-            alreadyCancelled.setStatus(booking.getStatus());
-            alreadyCancelled.setCancelledAt(booking.getUpdatedAt());
-            return alreadyCancelled;
+            throw new BusinessException(HttpStatus.CONFLICT.value(), ErrorCodes.BOOKING_CONFLICT,
+                    "Booking is already cancelled");
         }
 
         if (!Set.of(DomainConstants.BookingStatus.PENDING_PAYMENT, DomainConstants.BookingStatus.CONFIRMED).contains(booking.getStatus())) {
@@ -199,7 +196,7 @@ public class BookingServiceImpl implements BookingService {
         CancelBookingVo response = new CancelBookingVo();
         response.setBookingId(booking.getBookingId());
         response.setStatus(DomainConstants.BookingStatus.CANCELLED);
-        response.setCancelledAt(LocalDateTime.now());
+        response.setCancelledAt(booking.getUpdatedAt());
         return response;
     }
 

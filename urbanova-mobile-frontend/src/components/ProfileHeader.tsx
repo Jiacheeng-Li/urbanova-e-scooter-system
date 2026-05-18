@@ -48,6 +48,7 @@ const styles = StyleSheet.create({
   },
   content: {
     marginLeft: 16,
+    flex: 1,
   },
   name: {
     color: colors.textPrimary,
@@ -60,17 +61,23 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     marginTop: 8,
   },
   badge: {
     backgroundColor: 'rgba(255,255,255,0.08)',
     color: colors.textPrimary,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: radii.sm,
     marginRight: 8,
+    marginBottom: 6,
     fontSize: 12,
     fontWeight: '600',
+    minWidth: 78,
+    flexShrink: 0,
+    textAlign: 'center',
+    lineHeight: 16,
   },
 });
 

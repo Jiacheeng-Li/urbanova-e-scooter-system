@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import {
   ActivityIndicator,
@@ -15,6 +15,7 @@ import {
 import { RootStackParamList } from '@models/index';
 import ScreenContainer from '@components/ScreenContainer';
 import PrimaryButton from '@components/PrimaryButton';
+import PolicyAgreement from '@components/PolicyAgreement';
 import { colors } from '@theme/colors';
 import { AuthService } from '@services/api';
 import { useAuthStore } from '@store/useAuthStore';
@@ -30,6 +31,8 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
   const [resetPasswordConfirm, setResetPasswordConfirm] = useState('');
   const [resetVisible, setResetVisible] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
+  const [policyAccepted, setPolicyAccepted] = useState(false);
+  const [policyVisible, setPolicyVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const setAuthPayload = useAuthStore((state) => state.setAuthPayload);
@@ -41,6 +44,10 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
     }
     if (!password.trim()) {
       setError('Please enter your password');
+      return;
+    }
+    if (!policyAccepted) {
+      setError('Please review and accept the URBANOVA Rider Policy before signing in.');
       return;
     }
 
@@ -144,6 +151,16 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
             style={styles.input}
           />
         </View>
+        <PolicyAgreement
+          accepted={policyAccepted}
+          visible={policyVisible}
+          onToggle={() => {
+            setPolicyAccepted((prev) => !prev);
+            setError('');
+          }}
+          onOpen={() => setPolicyVisible(true)}
+          onClose={() => setPolicyVisible(false)}
+        />
         <PrimaryButton label={loading ? '' : 'Sign in'} onPress={handleLogin} disabled={loading} />
         {loading && <ActivityIndicator color={colors.lime} style={styles.loader} />}
         <TouchableOpacity

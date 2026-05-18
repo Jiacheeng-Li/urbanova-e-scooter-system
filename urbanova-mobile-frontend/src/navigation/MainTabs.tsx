@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '@theme/colors';
 import RideScreen from '@screens/Ride/RideScreen';
@@ -11,16 +12,32 @@ import PromotionGate from '@components/PromotionGate';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
-const MainTabs = () => (
-  <>
-    <PromotionGate />
+const MainTabs = () => {
+  const tabNavigationRef = useRef<BottomTabNavigationProp<MainTabParamList> | null>(null);
+
+  return (
+    <>
+    <PromotionGate onOpenProfile={() => tabNavigationRef.current?.navigate('Profile')} />
     <Tab.Navigator
+      screenListeners={({ navigation }) => ({
+        focus: () => {
+          tabNavigationRef.current = navigation;
+        },
+        state: () => {
+          tabNavigationRef.current = navigation;
+        },
+      })}
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarStyle: {
           backgroundColor: colors.graphite,
           borderTopColor: 'rgba(255,255,255,0.08)',
           paddingTop: 4,
+          borderTopWidth: 1,
+        },
+        tabBarBackground: () => null,
+        sceneStyle: {
+          backgroundColor: colors.ink,
         },
         tabBarActiveTintColor: colors.lime,
         tabBarInactiveTintColor: colors.textMuted,
@@ -40,7 +57,8 @@ const MainTabs = () => (
       <Tab.Screen name="Wallet" component={WalletScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
-  </>
-);
+    </>
+  );
+};
 
 export default MainTabs;

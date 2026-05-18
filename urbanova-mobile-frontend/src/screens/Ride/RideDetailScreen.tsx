@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -9,6 +9,7 @@ import {
   TextInput,
   View,
   Image,
+  Modal,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -31,6 +32,7 @@ import { formatCurrency, formatDate } from '@utils/format';
 import { validateReturnLocation } from '@utils/geo';
 import { maskCard } from '@utils/security';
 import ScooterFaultDiagram, { FaultPart } from '@components/ScooterFaultDiagram';
+import { useAuthStore } from '@store/useAuthStore';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'RideDetail'>;
 
@@ -42,6 +44,28 @@ const statusTone: Record<string, string> = {
   CANCELLED: '#F45B69',
 };
 
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const PICKER_YEARS = Array.from({ length: 6 }, (_, index) => new Date().getFullYear() + index);
+
+const getDayCount = (year: number, monthIndex: number) => new Date(year, monthIndex + 1, 0).getDate();
+
+const roundUpToNextFiveMinutes = (date: Date) => {
+  const rounded = new Date(date);
+  rounded.setSeconds(0, 0);
+  const remainder = rounded.getMinutes() % 5;
+  if (remainder !== 0) {
+    rounded.setMinutes(rounded.getMinutes() + (5 - remainder));
+  }
+  return rounded;
+};
+
+const formatPickerTimestamp = (value: string) => {
+  if (!value) return 'Immediate start';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Select start time';
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+};
+
 const getApiErrorMessage = (error: any, fallback: string) => {
   const message = error?.response?.data?.error?.message || error?.message || fallback;
   const code = error?.response?.data?.error?.code;
@@ -51,8 +75,9 @@ const getApiErrorMessage = (error: any, fallback: string) => {
   return code ? `${message} (${code})` : message;
 };
 
-const RideDetailScreen: React.FC<Props> = ({ route }) => {
+const RideDetailScreen: React.FC<Props> = ({ route, navigation }) => {
   const { bookingId } = route.params;
+  const userId = useAuthStore((state) => state.user?.userId);
   const queryClient = useQueryClient();
   const { passes } = usePasses();
   const { location } = useCurrentLocation();
@@ -67,30 +92,40 @@ const RideDetailScreen: React.FC<Props> = ({ route }) => {
   const [faultPart, setFaultPart] = useState<FaultPart>('brake');
   const [faultPhotos, setFaultPhotos] = useState<Array<{ uri: string; name?: string; type?: string }>>([]);
   const [plannedStartInput, setPlannedStartInput] = useState('');
+  const [updatePickerVisible, setUpdatePickerVisible] = useState(false);
+  const [pickerYear, setPickerYear] = useState(new Date().getFullYear());
+  const [pickerMonth, setPickerMonth] = useState(new Date().getMonth());
+  const [pickerDay, setPickerDay] = useState(new Date().getDate());
+  const [pickerHour, setPickerHour] = useState(new Date().getHours());
+  const [pickerMinute, setPickerMinute] = useState(roundUpToNextFiveMinutes(new Date()).getMinutes());
   const [cancelReason, setCancelReason] = useState('Plans changed');
 
   const bookingQuery = useQuery({
-    queryKey: ['booking-detail', bookingId],
+    queryKey: ['booking-detail', userId ?? 'guest', bookingId],
     queryFn: () => BookingService.getDetail(bookingId),
+    enabled: !!userId,
   });
 
   const paymentsQuery = useQuery({
-    queryKey: ['booking-payments', bookingId],
+    queryKey: ['booking-payments', userId ?? 'guest', bookingId],
     queryFn: () => PaymentService.listByBooking(bookingId),
+    enabled: !!userId,
   });
 
   const timelineQuery = useQuery({
-    queryKey: ['booking-timeline', bookingId],
+    queryKey: ['booking-timeline', userId ?? 'guest', bookingId],
     queryFn: () => BookingService.timeline(bookingId),
+    enabled: !!userId,
   });
 
   const paymentMethodsQuery = useQuery({
-    queryKey: ['payment-methods'],
+    queryKey: ['payment-methods', userId ?? 'guest'],
     queryFn: PaymentMethodService.list,
+    enabled: !!userId,
   });
 
   const confirmationQuery = useQuery({
-    queryKey: ['booking-confirmation', bookingId],
+    queryKey: ['booking-confirmation', userId ?? 'guest', bookingId],
     queryFn: async () => {
       try {
         return await ConfirmationService.getForBooking(bookingId);
@@ -102,6 +137,7 @@ const RideDetailScreen: React.FC<Props> = ({ route }) => {
       }
     },
     retry: false,
+    enabled: !!userId,
   });
 
   const activePaymentMethods = useMemo(
@@ -145,7 +181,7 @@ const RideDetailScreen: React.FC<Props> = ({ route }) => {
       paymentsQuery.refetch(),
       timelineQuery.refetch(),
       confirmationQuery.refetch(),
-      queryClient.invalidateQueries({ queryKey: ['bookings'] }),
+      queryClient.invalidateQueries({ queryKey: ['bookings', userId ?? 'guest'] }),
     ]);
   };
 
@@ -263,6 +299,9 @@ const RideDetailScreen: React.FC<Props> = ({ route }) => {
   });
 
   const booking = bookingQuery.data;
+  const dayOptions = Array.from({ length: getDayCount(pickerYear, pickerMonth) }, (_, index) => index + 1);
+  const hourOptions = Array.from({ length: 24 }, (_, index) => index);
+  const minuteOptions = Array.from({ length: 12 }, (_, index) => index * 5);
 
   if (bookingQuery.isLoading || !booking) {
     return (
@@ -282,6 +321,28 @@ const RideDetailScreen: React.FC<Props> = ({ route }) => {
   const selectedPaymentMethod: PaymentMethod | undefined = activePaymentMethods.find(
     (item) => item.paymentMethodId === selectedPaymentMethodId
   );
+
+  const openUpdateStartPicker = () => {
+    const now = roundUpToNextFiveMinutes(new Date());
+    const source = plannedStartInput ? new Date(plannedStartInput) : now;
+    const selected = !Number.isNaN(source.getTime()) && source.getTime() >= Date.now() - 60_000 ? source : now;
+    setPickerYear(selected.getFullYear());
+    setPickerMonth(selected.getMonth());
+    setPickerDay(selected.getDate());
+    setPickerHour(selected.getHours());
+    setPickerMinute(Math.round(selected.getMinutes() / 5) * 5 % 60);
+    setUpdatePickerVisible(true);
+  };
+
+  const confirmUpdateStartPicker = () => {
+    const selected = new Date(pickerYear, pickerMonth, pickerDay, pickerHour, pickerMinute, 0);
+    if (selected.getTime() < Date.now() - 60_000) {
+      Alert.alert('Invalid start time', 'Please choose the current time or a future time.');
+      return;
+    }
+    setPlannedStartInput(selected.toISOString().slice(0, 16));
+    setUpdatePickerVisible(false);
+  };
 
   const handleEndRide = () => {
     if (!returnValidation.isValid) {
@@ -324,7 +385,7 @@ const RideDetailScreen: React.FC<Props> = ({ route }) => {
       return;
     }
 
-    const picked = result.assets.slice(0, 5).map((asset, index) => ({
+    const picked = result.assets.slice(0, 5).map((asset: ImagePicker.ImagePickerAsset, index: number) => ({
       uri: asset.uri,
       name: asset.fileName || `fault-photo-${index + 1}.jpg`,
       type: asset.mimeType || 'image/jpeg',
@@ -333,6 +394,7 @@ const RideDetailScreen: React.FC<Props> = ({ route }) => {
   };
 
   return (
+    <>
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.hero}>
         <Text style={styles.heroLabel}>Booking reference</Text>
@@ -356,6 +418,11 @@ const RideDetailScreen: React.FC<Props> = ({ route }) => {
         <Text style={styles.valueText}>End: {booking.endAt || 'Pending'}</Text>
         <Text style={styles.valueText}>Actual start: {booking.actualStartAt || '-'}</Text>
         <Text style={styles.valueText}>Actual end: {booking.actualEndAt || '-'}</Text>
+        <PrimaryButton
+          label="Report this vehicle"
+          onPress={() => navigation.navigate('VehicleDetail', { vehicleId: booking.scooterId, mode: 'report' })}
+          style={styles.reportVehicleButton}
+        />
       </View>
 
       {isPendingPayment ? (
@@ -414,15 +481,10 @@ const RideDetailScreen: React.FC<Props> = ({ route }) => {
           <Text style={styles.helperText}>
             You can adjust hire option or planned start time. If another booking blocks the new time, the backend will reject it.
           </Text>
-          <Text style={styles.fieldLabel}>Planned start timestamp</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="YYYY-MM-DDTHH:mm:ss"
-            placeholderTextColor={colors.textMuted}
-            value={plannedStartInput}
-            onChangeText={setPlannedStartInput}
-            autoCapitalize="none"
-          />
+          <Text style={styles.fieldLabel}>Planned start time</Text>
+          <Pressable style={styles.dateButton} onPress={openUpdateStartPicker}>
+            <Text style={styles.dateButtonText}>{formatPickerTimestamp(plannedStartInput)}</Text>
+          </Pressable>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingVertical: 4 }}>
             {passes.map((plan) => (
               <Pressable
@@ -631,8 +693,65 @@ const RideDetailScreen: React.FC<Props> = ({ route }) => {
         </View>
       ) : null}
     </ScrollView>
+      <Modal visible={updatePickerVisible} transparent animationType="fade" onRequestClose={() => setUpdatePickerVisible(false)}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.pickerCard}>
+            <Text style={styles.sectionTitle}>Select start time</Text>
+            <View style={styles.pickerHeader}>
+              <Text style={styles.pickerHeaderText}>Year</Text>
+              <Text style={styles.pickerHeaderText}>Month</Text>
+              <Text style={styles.pickerHeaderText}>Day</Text>
+              <Text style={styles.pickerHeaderText}>Hour</Text>
+              <Text style={styles.pickerHeaderText}>Min</Text>
+            </View>
+            <View style={styles.pickerRow}>
+              <ScrollView style={styles.pickerColumn} showsVerticalScrollIndicator={false}>
+                {PICKER_YEARS.map((year) => (
+                  <PickerItem key={year} label={`${year}`} selected={pickerYear === year} onPress={() => setPickerYear(year)} />
+                ))}
+              </ScrollView>
+              <ScrollView style={styles.pickerColumn} showsVerticalScrollIndicator={false}>
+                {MONTHS.map((month, index) => (
+                  <PickerItem key={month} label={month} selected={pickerMonth === index} onPress={() => setPickerMonth(index)} />
+                ))}
+              </ScrollView>
+              <ScrollView style={styles.pickerColumn} showsVerticalScrollIndicator={false}>
+                {dayOptions.map((day) => (
+                  <PickerItem key={day} label={`${day}`} selected={pickerDay === day} onPress={() => setPickerDay(day)} />
+                ))}
+              </ScrollView>
+              <ScrollView style={styles.pickerColumn} showsVerticalScrollIndicator={false}>
+                {hourOptions.map((hour) => (
+                  <PickerItem key={hour} label={`${String(hour).padStart(2, '0')}`} selected={pickerHour === hour} onPress={() => setPickerHour(hour)} />
+                ))}
+              </ScrollView>
+              <ScrollView style={styles.pickerColumn} showsVerticalScrollIndicator={false}>
+                {minuteOptions.map((minute) => (
+                  <PickerItem
+                    key={minute}
+                    label={`${String(minute).padStart(2, '0')}`}
+                    selected={pickerMinute === minute}
+                    onPress={() => setPickerMinute(minute)}
+                  />
+                ))}
+              </ScrollView>
+            </View>
+            <View style={styles.pickerActions}>
+              <PrimaryButton label="Close" onPress={() => setUpdatePickerVisible(false)} style={styles.pickerButton} />
+              <PrimaryButton label="Confirm" onPress={confirmUpdateStartPicker} style={styles.pickerButton} />
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 };
+
+const PickerItem = ({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) => (
+  <Pressable style={[styles.pickerItem, selected && styles.pickerItemSelected]} onPress={onPress}>
+    <Text style={[styles.pickerItemLabel, selected && styles.pickerItemLabelSelected]}>{label}</Text>
+  </Pressable>
+);
 
 const styles = StyleSheet.create({
   container: {
@@ -759,6 +878,9 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     marginBottom: 6,
   },
+  reportVehicleButton: {
+    marginTop: 10,
+  },
   warningText: {
     color: '#FFC857',
   },
@@ -839,9 +961,83 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     marginBottom: 10,
   },
+  dateButton: {
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
+    borderRadius: radii.md,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    marginBottom: 10,
+  },
+  dateButtonText: {
+    color: colors.textPrimary,
+    fontWeight: '600',
+  },
   textarea: {
     minHeight: 96,
     textAlignVertical: 'top',
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+  },
+  pickerCard: {
+    backgroundColor: colors.graphite,
+    borderRadius: radii.lg,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+  },
+  pickerHeader: {
+    flexDirection: 'row',
+    marginTop: 10,
+    marginBottom: 8,
+  },
+  pickerHeaderText: {
+    flex: 1,
+    color: colors.textSecondary,
+    fontWeight: '700',
+    textAlign: 'center',
+    fontSize: 12,
+  },
+  pickerRow: {
+    flexDirection: 'row',
+    height: 220,
+  },
+  pickerColumn: {
+    flex: 1,
+    marginHorizontal: 3,
+  },
+  pickerItem: {
+    height: 40,
+    borderRadius: radii.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  pickerItemSelected: {
+    backgroundColor: 'rgba(131,111,255,0.22)',
+    borderWidth: 1,
+    borderColor: colors.lime,
+  },
+  pickerItemLabel: {
+    color: colors.textSecondary,
+    fontWeight: '600',
+    fontSize: 12,
+  },
+  pickerItemLabelSelected: {
+    color: colors.textPrimary,
+  },
+  pickerActions: {
+    flexDirection: 'row',
+    marginTop: 12,
+    gap: 10,
+  },
+  pickerButton: {
+    flex: 1,
   },
   listRow: {
     borderTopWidth: StyleSheet.hairlineWidth,

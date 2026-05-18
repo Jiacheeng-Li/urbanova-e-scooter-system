@@ -1,11 +1,14 @@
 package com.lcyhz.urbanova.controller;
 
 import com.lcyhz.urbanova.common.api.ApiResponse;
+import com.lcyhz.urbanova.common.exception.BusinessException;
+import com.lcyhz.urbanova.common.exception.ErrorCodes;
 import com.lcyhz.urbanova.domain.DomainConstants;
 import com.lcyhz.urbanova.security.AuthContext;
 import com.lcyhz.urbanova.service.DiscountRuleService;
 import com.lcyhz.urbanova.service.support.PlatformSupportService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -45,10 +48,10 @@ public class DiscountController {
     }
 
     @PatchMapping("/admin/discount-rules/{discountRuleId}")
-    public ApiResponse<Map<String, Object>> updateRule(@PathVariable String discountRuleId,
+    public ApiResponse<Map<String, Object>> updateRule(@PathVariable("discountRuleId") String discountRuleId,
                                                        @RequestBody Map<String, Object> request) {
         AuthContext.requireRole(DomainConstants.ROLE_MANAGER);
-        Map<String, Object> result = discountRuleService.updatePolicy(discountRuleId, request);
+        Map<String, Object> result = discountRuleService.updatePolicy(requireIdentifier(discountRuleId, "discountRuleId"), request);
         platformSupportService.recordAudit("PROMOTION_POLICY_UPDATED", "PROMOTION_POLICY",
                 String.valueOf(result.get("promotionPolicyId")), String.valueOf(result.get("policyCode")));
         return ApiResponse.success(result);
@@ -70,12 +73,20 @@ public class DiscountController {
     }
 
     @PatchMapping("/admin/promotion-policies/{promotionPolicyId}")
-    public ApiResponse<Map<String, Object>> updatePolicy(@PathVariable String promotionPolicyId,
+    public ApiResponse<Map<String, Object>> updatePolicy(@PathVariable("promotionPolicyId") String promotionPolicyId,
                                                          @RequestBody Map<String, Object> request) {
         AuthContext.requireRole(DomainConstants.ROLE_MANAGER);
-        Map<String, Object> result = discountRuleService.updatePolicy(promotionPolicyId, request);
+        Map<String, Object> result = discountRuleService.updatePolicy(requireIdentifier(promotionPolicyId, "promotionPolicyId"), request);
         platformSupportService.recordAudit("PROMOTION_POLICY_UPDATED", "PROMOTION_POLICY",
                 String.valueOf(result.get("promotionPolicyId")), String.valueOf(result.get("policyCode")));
         return ApiResponse.success(result);
+    }
+
+    private String requireIdentifier(String value, String fieldName) {
+        if (value == null || value.trim().isEmpty()) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST.value(), ErrorCodes.VALIDATION_ERROR,
+                    fieldName + " is required");
+        }
+        return value.trim();
     }
 }

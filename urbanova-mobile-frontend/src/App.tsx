@@ -1,6 +1,6 @@
 import 'react-native-gesture-handler';
 import { StatusBar } from 'expo-status-bar';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useEffect, useState } from 'react';
@@ -9,8 +9,8 @@ import { LogBox, Platform, View, ActivityIndicator } from 'react-native';
 import AppNavigator from '@navigation/AppNavigator';
 import { useAuthStore } from '@store/useAuthStore';
 import { colors } from '@theme/colors';
-
-const queryClient = new QueryClient();
+import { queryClient } from '@services/queryClient';
+import { initializeBaiduMap } from '@services/baiduMap';
 
 function AppContent() {
   const checkAuth = useAuthStore((state) => state.checkAuth);
@@ -19,6 +19,10 @@ function AppContent() {
   useEffect(() => {
     const init = async () => {
       try {
+        const mapInitialization = initializeBaiduMap();
+        if (!mapInitialization.ready && mapInitialization.error) {
+          console.warn(mapInitialization.error);
+        }
         await checkAuth();
       } catch (error) {
         console.warn('Failed to restore session', error);

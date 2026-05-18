@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Alert, Linking, Modal, Pressable, ScrollView as RNScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
@@ -15,7 +15,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useSettingsStore } from '@store/useSettingsStore';
 import { AuthService } from '@services/api';
 import { validatePasswordStrength } from '@utils/security';
-import { getEligibilityHeadline, isUserFacingPromotionType } from '@utils/promotions';
+import { getEligibilityHeadline, getUserFacingEligibilityType } from '@utils/promotions';
 import { LinearGradient } from 'expo-linear-gradient';
 
 const SUPPORT_EMAIL = 'support@urbanova.app';
@@ -43,7 +43,7 @@ const ProfileScreen = () => {
   const setContrastMode = useSettingsStore((state) => state.setContrastMode);
 
   const usageSummaryQuery = useQuery({
-    queryKey: ['usage-summary'],
+    queryKey: ['usage-summary', profile?.userId ?? 'guest'],
     queryFn: AuthService.getUsageSummary,
     enabled: !!profile,
   });
@@ -166,16 +166,16 @@ const ProfileScreen = () => {
     }
   };
 
-  const handleRequestResetToken = async () => {
+  const handleRequestResetCode = async () => {
     if (!resetEmail.trim()) {
       Alert.alert('Validation', 'Email is required.');
       return;
     }
     try {
       await AuthService.forgotPassword(resetEmail.trim());
-      Alert.alert('Reset code sent', 'Please check your email for the 6-digit reset code.');
+      Alert.alert('Reset code sent', 'If the email is registered, a password reset code has been sent.');
     } catch (error: any) {
-      Alert.alert('Request failed', error?.response?.data?.error?.message || 'Unable to generate reset token.');
+      Alert.alert('Request failed', error?.response?.data?.error?.message || 'Unable to send reset code.');
     }
   };
 
@@ -240,7 +240,7 @@ const ProfileScreen = () => {
     {
       id: 'security',
       title: 'Account security center',
-      description: 'Request email reset codes and reset password with validation.',
+      description: 'Send an email reset code and reset password with validation.',
       handler: handleOpenSecurity,
     },
     {
@@ -270,7 +270,7 @@ const ProfileScreen = () => {
 
   const discountEligibility = usageSummaryQuery.data?.discountEligibility;
   const promotionHeadline = getEligibilityHeadline(discountEligibility);
-  const userFacingPromotionType = discountEligibility?.eligibleTypes?.find(isUserFacingPromotionType);
+  const userFacingPromotionType = getUserFacingEligibilityType(discountEligibility);
 
   return (
     <>
@@ -285,7 +285,10 @@ const ProfileScreen = () => {
               <Text style={styles.value}>Bookings: {usageSummaryQuery.data.bookingCount}</Text>
               <Text style={styles.value}>Hours used: {usageSummaryQuery.data.hoursUsed}</Text>
               <Text style={styles.value}>Total spent: GBP {usageSummaryQuery.data.totalSpent}</Text>
-              <Text style={styles.value}>7-day usage: {usageSummaryQuery.data.hoursLast7Days} hours</Text>
+              <Text style={styles.value}>
+                7-day usage: {Number(usageSummaryQuery.data.hoursLast7Days || 0).toFixed(1)} /{' '}
+                {Number(discountEligibility?.frequentUserThresholdHoursPerWeek || usageSummaryQuery.data.frequentUserThresholdHoursPerWeek || 8).toFixed(0)} hours
+              </Text>
               <Text style={styles.value}>Age group: {discountEligibility?.ageGroup || profile.ageGroup || 'Not set'}</Text>
               <Text style={styles.value}>
                 Promotion: {promotionHeadline}
@@ -423,7 +426,7 @@ const ProfileScreen = () => {
         <View style={styles.modalBackdrop}>
           <View style={[styles.modalCard, contrastMode === 'high' && styles.modalCardHighContrast]}>
             <Text style={[styles.modalTitle, { fontSize: scaleFont(18) }]}>Security center</Text>
-            <Text style={[styles.modalDescription, { fontSize: scaleFont(13) }]}>Use email reset codes and validation for protected account operations.</Text>
+            <Text style={[styles.modalDescription, { fontSize: scaleFont(13) }]}>Use the email-code reset flow for protected account operations.</Text>
             <Text style={[styles.sectionLabel, styles.modalSectionLabel, { fontSize: scaleFont(12) }]}>Email</Text>
             <TextInput
               style={styles.input}
@@ -433,15 +436,15 @@ const ProfileScreen = () => {
               value={resetEmail}
               onChangeText={setResetEmail}
             />
-            <PrimaryButton label="Send reset code" onPress={handleRequestResetToken} />
+            <PrimaryButton label="Send reset code" onPress={handleRequestResetCode} />
 
-            <Text style={[styles.sectionLabel, styles.modalSectionLabel, { fontSize: scaleFont(12) }]}>Reset code</Text>
+            <Text style={[styles.sectionLabel, styles.modalSectionLabel, { fontSize: scaleFont(12) }]}>Verification code</Text>
             <TextInput
               style={styles.input}
               placeholder="6-digit code"
               placeholderTextColor={colors.textMuted}
-              keyboardType="number-pad"
               value={resetCode}
+              keyboardType="number-pad"
               onChangeText={(text) => setResetCode(text.replace(/\D/g, '').slice(0, 6))}
             />
             <Text style={[styles.sectionLabel, styles.modalSectionLabel, { fontSize: scaleFont(12) }]}>New password</Text>
@@ -494,8 +497,10 @@ const ProfileScreen = () => {
                 ))}
               </RNScrollView>
             </View>
-            <PrimaryButton label="Confirm" onPress={confirmBirthdayPicker} />
-            <PrimaryButton label="Close" onPress={() => setBirthdayPickerVisible(false)} style={{ marginTop: 10 }} />
+            <View style={styles.modalButtonRow}>
+              <PrimaryButton label="Close" onPress={() => setBirthdayPickerVisible(false)} style={styles.modalButtonHalf} />
+              <PrimaryButton label="Confirm" onPress={confirmBirthdayPicker} style={styles.modalButtonHalf} />
+            </View>
           </View>
         </View>
       </Modal>
@@ -646,6 +651,14 @@ const styles = StyleSheet.create({
   },
   modalSectionLabel: {
     marginTop: 12,
+  },
+  modalButtonRow: {
+    flexDirection: 'row',
+    marginTop: 12,
+  },
+  modalButtonHalf: {
+    flex: 1,
+    marginHorizontal: 4,
   },
   sectionLabel: {
     color: colors.textSecondary,

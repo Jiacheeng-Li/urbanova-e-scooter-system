@@ -89,6 +89,12 @@ public class IssueController {
         return ApiResponse.success(issueManagementService.listAdminIssues(status, priority));
     }
 
+    @GetMapping("/admin/issues/open-by-priority")
+    public ApiResponse<List<Map<String, Object>>> listOpenIssuesByPriority(@RequestParam String priority) {
+        AuthContext.requireRole(DomainConstants.ROLE_MANAGER);
+        return ApiResponse.success(issueManagementService.listOpenIssuesByPriority(priority));
+    }
+
     @PatchMapping("/admin/issues/{issueId}/priority")
     public ApiResponse<Map<String, Object>> updatePriority(@PathVariable String issueId,
                                                            @RequestBody Map<String, Object> request) {

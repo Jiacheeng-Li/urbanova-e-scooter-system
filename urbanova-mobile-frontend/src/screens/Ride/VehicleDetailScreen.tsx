@@ -7,10 +7,12 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import ScooterFaultDiagram, { FaultPart } from '@components/ScooterFaultDiagram';
 import PrimaryButton from '@components/PrimaryButton';
 import { getVehicleModelImage } from '@data/vehicleImages';
+import { usePasses } from '@hooks/usePasses';
 import { RootStackParamList } from '@models/index';
-import { IssueService, ScooterService } from '@services/api';
+import { BookingService, IssueService, ScooterService } from '@services/api';
 import { useRideStore } from '@store/useRideStore';
 import { colors, radii } from '@theme/index';
+import { formatCurrency } from '@utils/format';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'VehicleDetail'>;
 
@@ -19,17 +21,30 @@ const PICKER_YEARS = Array.from({ length: 6 }, (_, index) => new Date().getFullY
 
 const getDayCount = (year: number, monthIndex: number) => new Date(year, monthIndex + 1, 0).getDate();
 
+const roundUpToNextFiveMinutes = (date: Date) => {
+  const rounded = new Date(date);
+  rounded.setSeconds(0, 0);
+  const remainder = rounded.getMinutes() % 5;
+  if (remainder !== 0) {
+    rounded.setMinutes(rounded.getMinutes() + (5 - remainder));
+  }
+  return rounded;
+};
+
 const formatPlannedStartDisplay = (value: string) => {
-  if (!value) return 'Select date and time';
+  if (!value) return 'Immediate start';
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return 'Select date and time';
+  if (Number.isNaN(date.getTime())) return 'Immediate start';
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
 };
 
-const VehicleDetailScreen: React.FC<Props> = ({ route }) => {
-  const { vehicleId } = route.params;
+const VehicleDetailScreen: React.FC<Props> = ({ route, navigation }) => {
+  const { vehicleId, mode = 'reserve' } = route.params;
   const plannedStartAt = useRideStore((state) => state.plannedStartAt);
   const setPlannedStartAt = useRideStore((state) => state.setPlannedStartAt);
+  const { passes, isLoading: passesLoading } = usePasses();
+  const [selectedHireOption, setSelectedHireOption] = useState<string | null>(null);
+  const [reserving, setReserving] = useState(false);
   const [startPickerVisible, setStartPickerVisible] = useState(false);
   const [faultPart, setFaultPart] = useState<FaultPart>('brake');
   const [title, setTitle] = useState('Vehicle fault report');
@@ -77,28 +92,80 @@ const VehicleDetailScreen: React.FC<Props> = ({ route }) => {
   });
 
   const scooter = scooterQuery.data;
+  const canReserveFromDetail = mode !== 'report' && String(scooter?.status || '').toUpperCase() === 'AVAILABLE';
   const dayOptions = Array.from({ length: getDayCount(pickerYear, pickerMonth) }, (_, index) => index + 1);
   const hourOptions = Array.from({ length: 24 }, (_, index) => index);
   const minuteOptions = Array.from({ length: 12 }, (_, index) => index * 5);
 
+  React.useEffect(() => {
+    if (!selectedHireOption && passes.length > 0) {
+      setSelectedHireOption(passes[0].id);
+    }
+  }, [passes, selectedHireOption]);
+
   const openStartPicker = () => {
+    const now = roundUpToNextFiveMinutes(new Date());
     if (plannedStartAt) {
       const parsed = new Date(plannedStartAt);
-      if (!Number.isNaN(parsed.getTime())) {
+      if (!Number.isNaN(parsed.getTime()) && parsed.getTime() >= now.getTime()) {
         setPickerYear(parsed.getFullYear());
         setPickerMonth(parsed.getMonth());
         setPickerDay(parsed.getDate());
         setPickerHour(parsed.getHours());
         setPickerMinute(Math.round(parsed.getMinutes() / 5) * 5 % 60);
+      } else {
+        setPickerYear(now.getFullYear());
+        setPickerMonth(now.getMonth());
+        setPickerDay(now.getDate());
+        setPickerHour(now.getHours());
+        setPickerMinute(now.getMinutes());
       }
+    } else {
+      setPickerYear(now.getFullYear());
+      setPickerMonth(now.getMonth());
+      setPickerDay(now.getDate());
+      setPickerHour(now.getHours());
+      setPickerMinute(now.getMinutes());
     }
     setStartPickerVisible(true);
   };
 
   const confirmStartPicker = () => {
     const selected = new Date(pickerYear, pickerMonth, pickerDay, pickerHour, pickerMinute, 0);
+    if (selected.getTime() < Date.now() - 60_000) {
+      Alert.alert('Invalid start time', 'Please choose the current time or a future time.');
+      return;
+    }
     setPlannedStartAt(selected.toISOString().slice(0, 16));
     setStartPickerVisible(false);
+  };
+
+  const handleReserve = async () => {
+    if (!selectedHireOption) {
+      Alert.alert('Select hire option', 'Please pick a hire option before reserving.');
+      return;
+    }
+    if (plannedStartAt) {
+      const plannedDate = new Date(plannedStartAt);
+      if (Number.isNaN(plannedDate.getTime()) || plannedDate.getTime() < Date.now() - 60_000) {
+        Alert.alert('Invalid start time', 'Please choose the current time or a future time.');
+        return;
+      }
+    }
+
+    try {
+      setReserving(true);
+      const booking = await BookingService.create({
+        scooterId: vehicleId,
+        hireOptionId: selectedHireOption,
+        plannedStartAt: plannedStartAt.trim() || undefined,
+      });
+      navigation.navigate('RideDetail', { bookingId: booking.bookingId });
+    } catch (error: any) {
+      Alert.alert('Reservation failed', error?.response?.data?.error?.message || 'Unable to reserve this vehicle.');
+    } finally {
+      setReserving(false);
+    }
   };
 
   const handlePickPhotos = async () => {
@@ -115,7 +182,7 @@ const VehicleDetailScreen: React.FC<Props> = ({ route }) => {
     });
     if (result.canceled) return;
     setPhotos(
-      result.assets.slice(0, 5).map((asset, index) => ({
+      result.assets.slice(0, 5).map((asset: ImagePicker.ImagePickerAsset, index: number) => ({
         uri: asset.uri,
         name: asset.fileName || `vehicle-fault-${index + 1}.jpg`,
         type: asset.mimeType || 'image/jpeg',
@@ -157,13 +224,40 @@ const VehicleDetailScreen: React.FC<Props> = ({ route }) => {
           <Text style={styles.meta}>Zone: {String(scooter?.zone || 'Not assigned')}</Text>
         </View>
 
+        {canReserveFromDetail ? (
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Planned start time</Text>
           <Text style={styles.helper}>Optional. Leave empty to reserve for immediate use.</Text>
           <Pressable style={styles.dateButton} onPress={openStartPicker}>
             <Text style={styles.dateButtonText}>{formatPlannedStartDisplay(plannedStartAt)}</Text>
           </Pressable>
+
+          <Text style={[styles.sectionTitle, styles.hireTitle]}>Hire option</Text>
+          {passesLoading ? (
+            <ActivityIndicator color={colors.lime} style={styles.inlineLoader} />
+          ) : (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.passRow}>
+              {passes.map((pass) => (
+                <Pressable
+                  key={pass.id}
+                  style={[styles.passChip, selectedHireOption === pass.id && styles.passChipActive]}
+                  onPress={() => setSelectedHireOption(pass.id)}
+                >
+                  <Text style={styles.passName}>{pass.name}</Text>
+                  <Text style={styles.passPrice}>{formatCurrency(pass.price)}</Text>
+                  <Text style={styles.passHint}>{Math.round(pass.durationMinutes / 60)} hours</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          )}
+          <PrimaryButton
+            label={reserving ? 'Reserving...' : 'Reserve this vehicle'}
+            onPress={handleReserve}
+            disabled={reserving || passesLoading || !selectedHireOption}
+            style={styles.reserveButton}
+          />
         </View>
+        ) : null}
 
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Report a fault</Text>
@@ -256,10 +350,9 @@ const VehicleDetailScreen: React.FC<Props> = ({ route }) => {
               </ScrollView>
             </View>
             <View style={styles.pickerActions}>
-              <PrimaryButton label="Use now" onPress={() => setPlannedStartAt('')} style={styles.pickerButton} />
+              <PrimaryButton label="Close" onPress={() => setStartPickerVisible(false)} style={styles.pickerButton} />
               <PrimaryButton label="Confirm" onPress={confirmStartPicker} style={styles.pickerButton} />
             </View>
-            <PrimaryButton label="Close" onPress={() => setStartPickerVisible(false)} style={{ marginTop: 10 }} />
           </View>
         </View>
       </Modal>
@@ -299,7 +392,7 @@ const styles = StyleSheet.create({
   },
   vehicleImage: {
     width: '100%',
-    height: 170,
+    height: 240,
     borderRadius: radii.lg,
     marginBottom: 14,
     backgroundColor: 'rgba(255,255,255,0.06)',
@@ -349,6 +442,48 @@ const styles = StyleSheet.create({
   dateButtonText: {
     color: colors.textPrimary,
     fontWeight: '600',
+  },
+  hireTitle: {
+    marginTop: 18,
+  },
+  inlineLoader: {
+    marginTop: 14,
+    alignSelf: 'flex-start',
+  },
+  passRow: {
+    paddingTop: 12,
+    paddingBottom: 4,
+  },
+  passChip: {
+    minWidth: 120,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    padding: 12,
+    marginRight: 10,
+  },
+  passChipActive: {
+    borderColor: colors.lime,
+    backgroundColor: 'rgba(131,111,255,0.18)',
+  },
+  passName: {
+    color: colors.textPrimary,
+    fontWeight: '800',
+  },
+  passPrice: {
+    color: colors.lime,
+    fontSize: 16,
+    fontWeight: '800',
+    marginTop: 6,
+  },
+  passHint: {
+    color: colors.textMuted,
+    fontSize: 12,
+    marginTop: 3,
+  },
+  reserveButton: {
+    marginTop: 14,
   },
   input: {
     borderWidth: 1,

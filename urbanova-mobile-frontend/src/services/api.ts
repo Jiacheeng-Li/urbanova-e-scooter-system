@@ -1,21 +1,30 @@
-﻿import axios, { AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
+import axios, { AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
-const extra = (Constants?.expoConfig?.extra as { apiBaseUrl?: string } | undefined) ?? {};
+const PUBLIC_API_BASE_URL = 'http://47.109.73.119:8080';
+const constants = Constants as typeof Constants & {
+  manifest?: { extra?: { apiBaseUrl?: string } };
+  manifest2?: {
+    extra?: {
+      apiBaseUrl?: string;
+      expoClient?: { extra?: { apiBaseUrl?: string } };
+    };
+  };
+};
+const extra =
+  (Constants?.expoConfig?.extra as { apiBaseUrl?: string } | undefined) ??
+  constants.manifest?.extra ??
+  constants.manifest2?.extra?.expoClient?.extra ??
+  constants.manifest2?.extra ??
+  {};
 
 const getDefaultBaseUrl = () => {
-  if (Platform.OS === 'android') {
-    return 'http://10.0.2.2:8080';
-  }
-  if (Platform.OS === 'ios') {
-    return 'http://127.0.0.1:8080';
-  }
-  return 'http://localhost:8080';
+  return PUBLIC_API_BASE_URL;
 };
 
-const BASE_URL = (extra.apiBaseUrl || getDefaultBaseUrl()).replace(/\/$/, '');
+export const API_BASE_URL = (extra.apiBaseUrl || getDefaultBaseUrl()).replace(/\/$/, '');
 
 export interface ApiErrorPayload {
   code: string;
@@ -34,7 +43,7 @@ interface ApiResponse<T> {
 }
 
 const api: AxiosInstance = axios.create({
-  baseURL: BASE_URL,
+  baseURL: API_BASE_URL,
   timeout: 20000,
   headers: {
     'Content-Type': 'application/json',
@@ -134,6 +143,7 @@ export interface UsageSummaryData {
   hoursUsed: number;
   totalSpent: number;
   hoursLast7Days: number;
+  frequentUserThresholdHoursPerWeek?: number;
   discountEligibility: DiscountEligibility;
 }
 
@@ -188,8 +198,8 @@ export const AuthService = {
       await clearSession();
     }
   },
-  forgotPassword: async (email: string): Promise<{ email?: string; sent?: boolean; expiresAt?: string; message?: string }> => {
-    const response = await api.post<ApiResponse<{ email?: string; sent?: boolean; expiresAt?: string; message?: string }>>('/api/v1/auth/password/forgot', {
+  forgotPassword: async (email: string): Promise<{ accepted: boolean; email: string }> => {
+    const response = await api.post<ApiResponse<{ accepted: boolean; email: string }>>('/api/v1/auth/password/forgot', {
       email,
     });
     return unwrap(response);
@@ -272,9 +282,62 @@ export const PaymentMethodService = {
   },
 };
 
+// ============ Wallet ============
+
+export interface WalletAccount {
+  walletAccountId: string;
+  userId: string;
+  balance: number;
+  currency: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WalletTransactionRecord {
+  walletTransactionId: string;
+  walletAccountId: string;
+  userId: string;
+  type: string;
+  direction: 'CREDIT' | 'DEBIT';
+  title: string;
+  amount: number;
+  currency: string;
+  method: string | null;
+  paymentMethodId: string | null;
+  description: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WalletTopUpRequest {
+  amount: number;
+  method: 'APPLE_PAY' | 'ALIPAY' | 'SAVED_CARD';
+  paymentMethodId?: string;
+}
+
+export const WalletService = {
+  getWallet: async (): Promise<WalletAccount> => {
+    const response = await api.get<ApiResponse<WalletAccount>>('/api/v1/wallet');
+    return unwrap(response);
+  },
+  listTransactions: async (): Promise<WalletTransactionRecord[]> => {
+    const response = await api.get<ApiResponse<WalletTransactionRecord[]>>('/api/v1/wallet/transactions');
+    return unwrap(response);
+  },
+  topUp: async (payload: WalletTopUpRequest): Promise<{ wallet: WalletAccount; transaction: WalletTransactionRecord }> => {
+    const response = await api.post<ApiResponse<{ wallet: WalletAccount; transaction: WalletTransactionRecord }>>(
+      '/api/v1/wallet/top-ups',
+      payload
+    );
+    return unwrap(response);
+  },
+};
+
 // ============ Scooters ============
 
 export interface ScooterMapPoint {
+  id?: number;
   scooterId: string;
   typeCode?: string;
   typeDisplayName?: string;
@@ -284,6 +347,22 @@ export interface ScooterMapPoint {
   lat: number;
   lng: number;
   zone: string | null;
+  distance?: number;
+  color?: string | null;
+  qrCodeId?: string | null;
+  batteryUpdatedAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface NearbyScootersResponse {
+  code?: number;
+  message?: string;
+  data?: ScooterMapPoint[];
+  count?: number;
+  centerLat?: number;
+  centerLng?: number;
+  radiusKm?: number;
 }
 
 export interface UserLocationPayload {
@@ -353,6 +432,16 @@ export const ScooterService = {
   getMapPoints: async (): Promise<ScooterMapPoint[]> => {
     const response = await api.get<ApiResponse<ScooterMapPoint[]>>('/api/v1/scooters/map-points');
     return unwrap(response);
+  },
+  getNearby: async (lat: number, lng: number, radiusKm = 5): Promise<ScooterMapPoint[]> => {
+    const response = await api.get<NearbyScootersResponse | ApiResponse<ScooterMapPoint[]>>('/location/nearby', {
+      params: { lat, lng, radiusKm },
+    });
+    const body = response.data;
+    if (Array.isArray((body as NearbyScootersResponse).data)) {
+      return (body as NearbyScootersResponse).data ?? [];
+    }
+    return unwrap(response as AxiosResponse<ApiResponse<ScooterMapPoint[]>>);
   },
   getDetail: async (scooterId: string): Promise<ScooterDetail> => {
     const response = await api.get<ApiResponse<ScooterDetail>>(`/api/v1/scooters/${scooterId}`);
@@ -615,7 +704,7 @@ export interface IssueRecord {
   reporterUserId: string;
   bookingId: string | null;
   scooterId: string | null;
-  issueType?: 'FAULT_REPORT' | 'COMPLAINT' | 'OTHER';
+  issueType?: 'FAULT_REPORT' | 'COMPLAINT' | 'LOW_BATTERY' | 'OTHER';
   title: string;
   description: string;
   priority: 'MEDIUM' | 'HIGH' | 'URGENT' | 'LOW' | 'CRITICAL';
@@ -719,6 +808,7 @@ export interface DiscountEligibility {
   ageGroup?: string | null;
   completedBookingCount?: number;
   hoursLast7Days?: number;
+  frequentUserThresholdHoursPerWeek?: number;
   eligibleTypes?: string[];
   estimatedPercentage?: number;
   activePolicies?: PromotionPolicy[];
@@ -743,40 +833,3 @@ export const DiscountService = {
 };
 
 export { api, ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY };
-
-// api.ts 中添加
-
-// ============ 附近车辆查询 ============
-
-export interface NearbyScooterPoint {
-  scooterId: string;
-  typeCode?: string;
-  typeDisplayName?: string;
-  typeImageUrl?: string;
-  status: string;
-  batteryPercent: number;
-  lat: number;
-  lng: number;
-  zone: string | null;
-  distance?: number;  // 距离中心的公里数
-}
-
-export interface NearbyScootersResponse {
-  code: number;
-  message: string;
-  data: NearbyScooterPoint[];
-  count: number;
-  centerLat: number;
-  centerLng: number;
-  radiusKm: number;
-}
-
-export const LocationService = {
-  // 查询附近5km内的车辆
-  getNearbyScooters: async (lat: number, lng: number, radiusKm: number = 5): Promise<NearbyScootersResponse> => {
-    const response = await api.get<NearbyScootersResponse>('/location/nearby', {
-      params: { lat, lng, radiusKm }
-    });
-    return response.data;
-  },
-};

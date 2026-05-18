@@ -1,6 +1,6 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import ScreenContainer from '@components/ScreenContainer';
 import { colors, radii } from '@theme/index';
 import { usePasses } from '@hooks/usePasses';
@@ -9,9 +9,18 @@ import PassCard from '@components/PassCard';
 import TransactionItem from '@components/TransactionItem';
 import PrimaryButton from '@components/PrimaryButton';
 import { formatCurrency } from '@utils/format';
-import { DiscountService, HireOptionService, PaymentMethod, PaymentMethodService, PriceQuote } from '@services/api';
+import {
+  DiscountService,
+  HireOptionService,
+  PaymentMethod,
+  PaymentMethodService,
+  PriceQuote,
+  WalletService,
+} from '@services/api';
 import { formatCardNumberForInput, maskCard, parseExpiry, sanitizeCardNumber } from '@utils/security';
-import { getEligibilityHeadline, getQuoteDiscountSummary, isUserFacingPromotionType } from '@utils/promotions';
+import { getEligibilityHeadline, getQuoteDiscountSummary, getUserFacingEligibilityType } from '@utils/promotions';
+import { useAuthStore } from '@store/useAuthStore';
+import { getApiErrorMessage } from '@utils/apiError';
 
 const TOP_UP_AMOUNTS = [5, 10, 20, 35];
 const QUICK_PAYMENT_METHODS = [
@@ -23,20 +32,28 @@ const QUICK_PAYMENT_METHODS = [
 type TopUpMethod = (typeof QUICK_PAYMENT_METHODS)[number]['id'];
 
 const WalletScreen = () => {
+  const userId = useAuthStore((state) => state.user?.userId);
+  const queryClient = useQueryClient();
   const { passes, isLoading } = usePasses();
   const { transactions } = useTransactions();
 
+  const walletQuery = useQuery({
+    queryKey: ['wallet', userId ?? 'guest'],
+    queryFn: WalletService.getWallet,
+    enabled: !!userId,
+  });
+
   const paymentMethodsQuery = useQuery({
-    queryKey: ['payment-methods'],
+    queryKey: ['payment-methods', userId ?? 'guest'],
     queryFn: PaymentMethodService.list,
+    enabled: !!userId,
   });
 
   const discountEligibilityQuery = useQuery({
-    queryKey: ['discount-eligibility'],
+    queryKey: ['discount-eligibility', userId ?? 'guest'],
     queryFn: DiscountService.getEligibility,
+    enabled: !!userId,
   });
-
-  const [balance, setBalance] = useState(32.4);
   const [selectedPassId, setSelectedPassId] = useState<string | null>(null);
   const [selectedAmount, setSelectedAmount] = useState<number>(TOP_UP_AMOUNTS[0]);
   const [customAmount, setCustomAmount] = useState('');
@@ -49,6 +66,7 @@ const WalletScreen = () => {
   const [setAsDefault, setSetAsDefault] = useState(true);
 
   const paymentMethods = paymentMethodsQuery.data ?? [];
+  const balance = Number(walletQuery.data?.balance || 0);
   const defaultMethod = paymentMethods.find((method) => method.isDefault) || paymentMethods[0];
   const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState<string>('');
   const [cardFormVisible, setCardFormVisible] = useState(paymentMethods.length === 0);
@@ -71,7 +89,7 @@ const WalletScreen = () => {
   );
 
   const quoteQuery = useQuery({
-    queryKey: ['wallet-price-quotes', passes.map((pass) => pass.code || pass.name).join(',')],
+    queryKey: ['wallet-price-quotes', userId ?? 'guest', passes.map((pass) => pass.code || pass.name).join(',')],
     queryFn: async () => {
       const entries = await Promise.all(
         passes.map(async (pass) => {
@@ -85,7 +103,7 @@ const WalletScreen = () => {
       );
       return Object.fromEntries(entries) as Record<string, PriceQuote | null>;
     },
-    enabled: passes.length > 0,
+    enabled: !!userId && passes.length > 0,
   });
 
   const createCardMutation = useMutation({
@@ -117,7 +135,7 @@ const WalletScreen = () => {
       setExpiry('');
       setLabel('Primary card');
       setSelectedPaymentMethodId(created.paymentMethodId);
-      await paymentMethodsQuery.refetch();
+      await queryClient.invalidateQueries({ queryKey: ['payment-methods', userId ?? 'guest'] });
       Alert.alert('Card added', 'Your card was saved successfully.');
     },
     onError: (error: any) => {
@@ -129,7 +147,7 @@ const WalletScreen = () => {
     mutationFn: (paymentMethodId: string) => PaymentMethodService.setDefault(paymentMethodId),
     onSuccess: async (updated) => {
       setSelectedPaymentMethodId(updated.paymentMethodId);
-      await paymentMethodsQuery.refetch();
+      await queryClient.invalidateQueries({ queryKey: ['payment-methods', userId ?? 'guest'] });
     },
     onError: (error: any) => {
       Alert.alert('Update failed', error?.response?.data?.error?.message || 'Unable to set default card.');
@@ -139,7 +157,7 @@ const WalletScreen = () => {
   const deleteMutation = useMutation({
     mutationFn: (paymentMethodId: string) => PaymentMethodService.remove(paymentMethodId),
     onSuccess: async () => {
-      await paymentMethodsQuery.refetch();
+      await queryClient.invalidateQueries({ queryKey: ['payment-methods', userId ?? 'guest'] });
       Alert.alert('Card removed', 'Payment method was removed from your account.');
     },
     onError: (error: any) => {
@@ -153,7 +171,31 @@ const WalletScreen = () => {
 
   const paymentMethodLabel = selectedMethod ? maskCard(selectedMethod.brand, selectedMethod.last4) : 'No card selected';
   const selectedTopUpLabel = QUICK_PAYMENT_METHODS.find((item) => item.id === selectedTopUpMethod)?.title || 'Unknown method';
-  const userFacingPromotionType = discountEligibilityQuery.data?.eligibleTypes?.find(isUserFacingPromotionType);
+  const userFacingPromotionType = getUserFacingEligibilityType(discountEligibilityQuery.data);
+
+  const topUpMutation = useMutation({
+    mutationFn: () =>
+      WalletService.topUp({
+        amount: amountToAdd,
+        method: selectedTopUpMethod === 'saved-card' ? 'SAVED_CARD' : selectedTopUpMethod === 'alipay' ? 'ALIPAY' : 'APPLE_PAY',
+        paymentMethodId: selectedTopUpMethod === 'saved-card' ? selectedPaymentMethodId : undefined,
+      }),
+    onSuccess: async (result) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['wallet', userId ?? 'guest'] }),
+        queryClient.invalidateQueries({ queryKey: ['wallet-transactions', userId ?? 'guest'] }),
+      ]);
+      Alert.alert(
+        'Top up successful',
+        `${formatCurrency(amountToAdd)} was added with ${
+          selectedTopUpMethod === 'saved-card' ? paymentMethodLabel : selectedTopUpLabel
+        }. New balance: ${formatCurrency(Number(result.wallet.balance || 0))}.`
+      );
+    },
+    onError: (error: any) => {
+      Alert.alert('Top up failed', getApiErrorMessage(error, 'Unable to top up wallet.'));
+    },
+  });
 
   const handleAmountPress = (amount: number) => {
     setSelectedAmount(amount);
@@ -178,14 +220,7 @@ const WalletScreen = () => {
       return;
     }
 
-    const newBalance = Number((balance + amountToAdd).toFixed(2));
-    setBalance(newBalance);
-    Alert.alert(
-      'Top up successful',
-      `${formatCurrency(amountToAdd)} was added with ${
-        selectedTopUpMethod === 'saved-card' ? paymentMethodLabel : selectedTopUpLabel
-      }. New balance: ${formatCurrency(newBalance)}.`
-    );
+    topUpMutation.mutate();
   };
 
   const handleSelectPass = (pass: any) => {
@@ -209,11 +244,11 @@ const WalletScreen = () => {
   return (
     <ScreenContainer>
       <Text style={styles.title}>Wallet</Text>
-      <Text style={styles.subtitle}>Bind cards securely, top up URBANOVA Cash, and review transactions.</Text>
+      <Text style={styles.subtitle}>Bind cards securely, top up URBANOVA Cash, and review wallet transactions.</Text>
       <View style={styles.balanceCard}>
         <View>
           <Text style={styles.balanceLabel}>Available balance</Text>
-          <Text style={styles.balanceValue}>{formatCurrency(balance)}</Text>
+          <Text style={styles.balanceValue}>{walletQuery.isLoading ? 'Loading...' : formatCurrency(balance)}</Text>
         </View>
         <View style={styles.balanceMeta}>
           <Text style={styles.metaLabel}>Selected top-up method</Text>
@@ -352,9 +387,9 @@ const WalletScreen = () => {
             onChangeText={handleCustomAmount}
           />
           <PrimaryButton
-            label={canTopUp ? `Add ${formatCurrency(amountToAdd)}` : 'Select amount'}
+            label={topUpMutation.isPending ? 'Processing...' : canTopUp ? `Add ${formatCurrency(amountToAdd)}` : 'Select amount'}
             onPress={handleAddFunds}
-            disabled={!canTopUp}
+            disabled={!canTopUp || topUpMutation.isPending}
           />
         </View>
 
@@ -382,30 +417,13 @@ const WalletScreen = () => {
           ) : (
             passes.map((pass) => {
               const quote = quoteQuery.data?.[pass.id];
-              const summary = getQuoteDiscountSummary(quote);
               return (
-                <View key={pass.id} style={styles.passQuoteWrap}>
-                  <PassCard
-                    pass={{ ...pass, quote: quote || undefined }}
-                    onSelect={handleSelectPass}
-                    isSelected={selectedPassId === pass.id}
-                  />
-                  {quote ? (
-                    <View style={styles.passQuoteFooter}>
-                      {summary ? (
-                        <>
-                          <Text style={styles.originalPrice}>{formatCurrency(Number(quote.basePrice || pass.price))}</Text>
-                          <Text style={styles.discountedPrice}>{formatCurrency(Number(quote.finalPrice || pass.price))}</Text>
-                          <Text style={styles.discountCopy}>
-                            {summary.percent}% off - {summary.label}
-                          </Text>
-                        </>
-                      ) : (
-                        <Text style={styles.discountCopy}>No discount on this option right now.</Text>
-                      )}
-                    </View>
-                  ) : null}
-                </View>
+                <PassCard
+                  key={pass.id}
+                  pass={{ ...pass, quote: quote || undefined }}
+                  onSelect={handleSelectPass}
+                  isSelected={selectedPassId === pass.id}
+                />
               );
             })
           )}
@@ -414,7 +432,7 @@ const WalletScreen = () => {
         <Text style={styles.sectionTitle}>Transactions</Text>
         <View style={styles.transactions}>
           {transactions.length === 0 ? (
-            <Text style={styles.helper}>No transactions yet. Complete a ride to see your history.</Text>
+            <Text style={styles.helper}>No wallet transactions yet. Add funds to create your first ledger entry.</Text>
           ) : (
             transactions.map((tx) => <TransactionItem key={tx.id} tx={tx} />)
           )}
@@ -423,7 +441,6 @@ const WalletScreen = () => {
     </ScreenContainer>
   );
 };
-
 const styles = StyleSheet.create({
   title: {
     fontSize: 28,
@@ -503,35 +520,6 @@ const styles = StyleSheet.create({
   promoSubtitle: {
     color: colors.textSecondary,
     marginTop: 6,
-    fontSize: 12,
-  },
-  passQuoteWrap: {
-    marginBottom: 14,
-  },
-  passQuoteFooter: {
-    marginTop: -10,
-    marginBottom: 8,
-    borderBottomLeftRadius: radii.lg,
-    borderBottomRightRadius: radii.lg,
-    padding: 12,
-    backgroundColor: 'rgba(131,111,255,0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(131,111,255,0.2)',
-  },
-  originalPrice: {
-    color: colors.textMuted,
-    textDecorationLine: 'line-through',
-    fontSize: 12,
-  },
-  discountedPrice: {
-    color: colors.lime,
-    fontWeight: '800',
-    fontSize: 18,
-    marginTop: 2,
-  },
-  discountCopy: {
-    color: colors.textSecondary,
-    marginTop: 4,
     fontSize: 12,
   },
   scrollArea: {
@@ -672,3 +660,5 @@ const styles = StyleSheet.create({
 });
 
 export default WalletScreen;
+
+

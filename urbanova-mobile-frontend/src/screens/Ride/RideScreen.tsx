@@ -14,7 +14,6 @@ import {
   View,
   NativeSyntheticEvent,
   NativeScrollEvent,
-  TextInput,
 } from 'react-native';
 import { CameraView, useCameraPermissions, BarcodeScanningResult } from 'expo-camera';
 import { useNavigation } from '@react-navigation/native';
@@ -41,6 +40,7 @@ const filters: { label: string; value: VehicleFilter }[] = [
 ];
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
+const NEARBY_RADIUS_KM = 5;
 const SHEET_HEIGHT = SCREEN_HEIGHT * 0.85;
 const SHEET_SNAP_POINTS = {
   expanded: SCREEN_HEIGHT * 0.12,
@@ -49,17 +49,19 @@ const SHEET_SNAP_POINTS = {
 const SHEET_BOTTOM_VISIBLE_PADDING = SHEET_SNAP_POINTS.expanded + 12;
 
 const RideScreen = () => {
-  const { vehicles, isLoading, error } = useVehicles();
   const { location } = useCurrentLocation();
+  const { vehicles, isLoading, error } = useVehicles({
+    lat: location?.latitude,
+    lng: location?.longitude,
+    radiusKm: NEARBY_RADIUS_KM,
+  });
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { filter, setFilter, selectedVehicle, setSelectedVehicle, plannedStartAt } = useRideStore();
   const { passes, isLoading: passesLoading } = usePasses();
   const [selectedHireOption, setSelectedHireOption] = useState<string | null>(null);
   const [selectedQuote, setSelectedQuote] = useState<PriceQuote | null>(null);
-  const [quoteLoading, setQuoteLoading] = useState(false);
   const [submittingId, setSubmittingId] = useState<string | null>(null);
   const [qrModalVisible, setQrModalVisible] = useState(false);
-  const [qrPayload, setQrPayload] = useState('');
   const [qrLoading, setQrLoading] = useState(false);
   const [qrCameraEnabled, setQrCameraEnabled] = useState(false);
   const [qrScanned, setQrScanned] = useState(false);
@@ -68,6 +70,8 @@ const RideScreen = () => {
   const sheetOffset = useRef(SHEET_SNAP_POINTS.collapsed);
   const translateY = useRef(new Animated.Value(SHEET_SNAP_POINTS.collapsed)).current;
   const listAtTop = useRef(true);
+  const vehicleListRef = useRef<FlatList<any>>(null);
+  const quoteRequestRef = useRef('');
 
   const animateSheet = (nextState: 'collapsed' | 'expanded') => {
     const toValue = SHEET_SNAP_POINTS[nextState];
@@ -175,12 +179,17 @@ const RideScreen = () => {
   useEffect(() => {
     const selectedPlan = passes.find((plan) => plan.id === selectedHireOption);
     if (!selectedVehicle || !selectedPlan?.code) {
+      quoteRequestRef.current = '';
       setSelectedQuote(null);
       return;
     }
 
+    const quoteKey = `${selectedVehicle.id}:${selectedPlan.code}`;
+    if (quoteRequestRef.current === quoteKey) {
+      return;
+    }
+    quoteRequestRef.current = quoteKey;
     let isMounted = true;
-    setQuoteLoading(true);
     HireOptionService.quote({
       scooterId: selectedVehicle.id,
       hireOptionCode: selectedPlan.code,
@@ -195,16 +204,11 @@ const RideScreen = () => {
           setSelectedQuote(null);
         }
       })
-      .finally(() => {
-        if (isMounted) {
-          setQuoteLoading(false);
-        }
-      });
 
     return () => {
       isMounted = false;
     };
-  }, [passes, selectedHireOption, selectedVehicle]);
+  }, [passes, selectedHireOption, selectedVehicle?.id]);
 
   const handleReserve = async (vehicle: any) => {
     if (!selectedHireOption) {
@@ -228,10 +232,10 @@ const RideScreen = () => {
     }
   };
 
-  const handleResolveQr = async (payloadOverride?: string) => {
-    const payloadToResolve = (payloadOverride || qrPayload).trim();
+  const handleResolveQr = async (payload: string) => {
+    const payloadToResolve = payload.trim();
     if (!payloadToResolve) {
-      Alert.alert('QR payload required', 'Paste a URBANOVA QR payload or scooter QR id.');
+      Alert.alert('QR payload required', 'Scan a valid URBANOVA scooter QR code.');
       return;
     }
     setQrLoading(true);
@@ -274,13 +278,13 @@ const RideScreen = () => {
     }
     setQrScanned(true);
     setQrCameraEnabled(false);
-    setQrPayload(result.data);
     handleResolveQr(result.data);
   };
 
+  const mapCenterVehicle = displayVehicles[0];
   const initialRegion = {
-    latitude: location?.latitude ?? 37.7749,
-    longitude: location?.longitude ?? -122.4194,
+    latitude: mapCenterVehicle?.lat ?? location?.latitude ?? 30.764633,
+    longitude: mapCenterVehicle?.lng ?? location?.longitude ?? 103.983826,
     latitudeDelta: 0.02,
     longitudeDelta: 0.02,
   };
@@ -288,7 +292,14 @@ const RideScreen = () => {
   const handleMapSelect = (vehicleId: string) => {
     const nextVehicle = filteredVehicles.find((v) => v.id === vehicleId);
     if (nextVehicle) {
-      handleVehiclePress(nextVehicle);
+      setSelectedVehicle(nextVehicle);
+      animateSheet('expanded');
+      const vehicleIndex = filteredVehicles.findIndex((vehicle) => vehicle.id === nextVehicle.id);
+      if (vehicleIndex >= 0) {
+        requestAnimationFrame(() => {
+          vehicleListRef.current?.scrollToIndex({ index: vehicleIndex, animated: true, viewPosition: 0.08 });
+        });
+      }
     }
   };
 
@@ -297,6 +308,7 @@ const RideScreen = () => {
       <FleetMap
         vehicles={filteredVehicles}
         initialRegion={initialRegion}
+        userLocation={location}
         selectedVehicleId={selectedVehicle?.id}
         onSelectVehicle={handleMapSelect}
       />
@@ -362,6 +374,7 @@ const RideScreen = () => {
         {passesLoading && <ActivityIndicator color={colors.textSecondary} style={styles.loader} />}
         <View style={styles.vehicleList}>
           <FlatList
+            ref={vehicleListRef}
             data={filteredVehicles}
             keyExtractor={(item) => item.id}
             renderItem={({ item }) => (
@@ -378,6 +391,11 @@ const RideScreen = () => {
             contentContainerStyle={{ paddingBottom: 16 }}
             onScroll={handleVehicleListScroll}
             scrollEventThrottle={16}
+            onScrollToIndexFailed={({ index }) => {
+              setTimeout(() => {
+                vehicleListRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.08 });
+              }, 250);
+            }}
             ListEmptyComponent={!isLoading ? <Text style={styles.emptyText}>No vehicles available yet.</Text> : null}
           />
         </View>
@@ -393,7 +411,7 @@ const RideScreen = () => {
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Scan scooter QR</Text>
             <Text style={styles.modalHint}>
-              Scan the scooter QR code or paste the QR payload. URBANOVA will ask the backend whether the vehicle can be booked.
+              Scan the scooter QR code. URBANOVA will ask the backend whether the vehicle can be booked.
             </Text>
             {qrCameraEnabled ? (
               <View style={styles.cameraBox}>
@@ -412,15 +430,6 @@ const RideScreen = () => {
               disabled={qrCameraEnabled}
               style={{ marginBottom: 10 }}
             />
-            <TextInput
-              style={styles.qrInput}
-              placeholder="URBANOVA:SCOOTER:QR:QR-SCO0001"
-              placeholderTextColor={colors.textMuted}
-              value={qrPayload}
-              onChangeText={setQrPayload}
-              autoCapitalize="characters"
-            />
-            <PrimaryButton label={qrLoading ? 'Resolving...' : 'Resolve QR'} onPress={() => handleResolveQr()} disabled={qrLoading} />
             <PrimaryButton label="Close" onPress={() => setQrModalVisible(false)} style={{ marginTop: 10 }} />
           </View>
         </View>
@@ -595,15 +604,6 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: 8,
     marginBottom: 14,
-  },
-  qrInput: {
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.14)',
-    borderRadius: radii.md,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    color: colors.textPrimary,
-    marginBottom: 12,
   },
   cameraBox: {
     height: 260,
