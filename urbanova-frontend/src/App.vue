@@ -117,7 +117,7 @@ body {
 
 /* 浅紫星空主题 - 导航栏样式 */
 .app-header {
-  background: linear-gradient(135deg, rgba(138, 43, 226, 0.95) 0%, rgba(75, 0, 130, 0.95) 100%);
+  background: linear-gradient(135deg, rgba(75, 0, 130, 0.98) 0%, rgba(48, 0, 96, 0.98) 100%);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid rgba(255, 255, 255, 0.2);
   padding: 0;

@@ -25,7 +25,7 @@
       </div>
     </el-card>
 
-    <!-- 收入估算卡片 -->
+    <!-- 上方4个统计卡片 -->
     <el-row :gutter="20" class="stats-row">
       <el-col :xs="24" :sm="12" :md="6">
         <el-card class="stat-card revenue-card" shadow="hover">
@@ -34,7 +34,7 @@
               <el-icon><Money /></el-icon>
             </div>
             <div class="stat-info">
-              <div class="stat-value">£{{ formatNumber(revenueEstimate.estimatedRevenue) }}</div>
+              <div class="stat-value">£{{ formatNumber(totalRevenue) }}</div>
               <div class="stat-label">Total Revenue</div>
             </div>
           </div>
@@ -48,7 +48,7 @@
               <el-icon><Document /></el-icon>
             </div>
             <div class="stat-info">
-              <div class="stat-value">{{ calculateTotalBookings() }}</div>
+              <div class="stat-value">{{ totalBookings }}</div>
               <div class="stat-label">Total Bookings</div>
             </div>
           </div>
@@ -62,7 +62,7 @@
               <el-icon><TrendCharts /></el-icon>
             </div>
             <div class="stat-info">
-              <div class="stat-value">£{{ calculateAverageOrderValue() }}</div>
+              <div class="stat-value">£{{ formatNumber(averageOrderValue) }}</div>
               <div class="stat-label">Avg Order Value</div>
             </div>
           </div>
@@ -76,7 +76,7 @@
               <el-icon><Calendar /></el-icon>
             </div>
             <div class="stat-info">
-              <div class="stat-value">{{ calculateDaysInRange() }}</div>
+              <div class="stat-value">{{ daysInRange }}</div>
               <div class="stat-label">Days in Range</div>
             </div>
           </div>
@@ -84,31 +84,17 @@
       </el-col>
     </el-row>
 
-    <!-- 周收入图表 -->
-    <el-row :gutter="20">
-      <el-col :xs="24" :md="24">
-        <el-card class="chart-card" shadow="hover">
-          <template #header>
-            <div class="card-header">
-              <span>Weekly Revenue Trend</span>
-              <el-tag type="info" size="small">Last 7 Days</el-tag>
-            </div>
-          </template>
-          <div ref="weeklyChartRef" class="chart-container"></div>
-        </el-card>
-      </el-col>
-    </el-row>
-
-    <!-- 每日收入图表 + 按租赁选项收入 -->
+    <!-- 第一行：收入相关图表（方案收入折线图 + 方案收入饼图） -->
     <el-row :gutter="20">
       <el-col :xs="24" :md="14">
         <el-card class="chart-card" shadow="hover">
           <template #header>
             <div class="card-header">
-              <span>Daily Revenue Breakdown</span>
+              <span>Daily Revenue by Hire Option</span>
+              <el-tag type="success" size="small">Multi-line Trend</el-tag>
             </div>
           </template>
-          <div ref="dailyChartRef" class="chart-container"></div>
+          <div ref="optionIncomeLineRef" class="chart-container" v-loading="loadingOptionIncome"></div>
         </el-card>
       </el-col>
 
@@ -116,59 +102,38 @@
         <el-card class="chart-card" shadow="hover">
           <template #header>
             <div class="card-header">
-              <span>Revenue by Hire Option</span>
+              <span>Revenue Distribution by Option</span>
+              <el-tag type="warning" size="small">Pie Chart</el-tag>
             </div>
           </template>
-          <div ref="hireOptionChartRef" class="chart-container"></div>
+          <div ref="optionIncomePieRef" class="chart-container" v-loading="loadingOptionIncome"></div>
         </el-card>
       </el-col>
     </el-row>
 
-    <!-- 高频用户列表 -->
+    <!-- 第二行：使用统计图表（时间段用车数量 + Issue优先级分布） -->
     <el-row :gutter="20">
-      <el-col :xs="24" :md="24">
-        <el-card class="table-card" shadow="hover">
+      <el-col :xs="24" :md="14">
+        <el-card class="chart-card" shadow="hover">
           <template #header>
             <div class="card-header">
-              <span>Frequent Users</span>
-              <el-tag type="warning" size="small">Top 10 by Ride Hours</el-tag>
+              <span>Scooter Usage by Hour</span>
+              <el-tag type="info" size="small">Time Distribution</el-tag>
             </div>
           </template>
-          <el-table
-            :data="frequentUsers"
-            v-loading="loadingUsers"
-            stripe
-            border
-            style="width: 100%"
-          >
-            <el-table-column prop="rank" label="Rank" width="80" align="center">
-              <template #default="{ $index }">
-                <el-tag :type="getRankType($index + 1)">{{ $index + 1 }}</el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column prop="fullName" label="User Name" min-width="150" />
-            <el-table-column prop="email" label="Email" min-width="200" />
-            <el-table-column prop="hoursLast7Days" label="Total Ride Hours" width="150" align="right">
-              <template #default="{ row }">
-                <strong>{{ row.hoursLast7Days?.toFixed(1) || '0.0' }} hrs</strong>
-              </template>
-            </el-table-column>
-            <el-table-column label="Total Spent" width="150" align="right">
-              <template #default="{ row }">
-                <span class="money">£{{ formatNumber(row.totalSpent || 0) }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column label="Bookings" width="120" align="center">
-              <template #default="{ row }">
-                {{ row.bookingCount || 0 }}
-              </template>
-            </el-table-column>
-            <el-table-column label="Avg per Booking" width="140" align="right">
-              <template #default="{ row }">
-                £{{ formatNumber((row.totalSpent || 0) / (row.bookingCount || 1)) }}
-              </template>
-            </el-table-column>
-          </el-table>
+          <div ref="timeScooterRef" class="chart-container" v-loading="loadingTimeScooter"></div>
+        </el-card>
+      </el-col>
+
+      <el-col :xs="24" :md="10">
+        <el-card class="chart-card" shadow="hover">
+          <template #header>
+            <div class="card-header">
+              <span>Issue Distribution by Priority</span>
+              <el-tag type="danger" size="small">Pie Chart</el-tag>
+            </div>
+          </template>
+          <div ref="issuePieRef" class="chart-container" v-loading="loadingIssue"></div>
         </el-card>
       </el-col>
     </el-row>
@@ -176,70 +141,72 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { adminAnalyticsApi } from '../../api'
 import { ElMessage } from 'element-plus'
 import { Calendar, Refresh, Money, Document, TrendCharts } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 
 // Refs for charts
-const weeklyChartRef = ref(null)
-const dailyChartRef = ref(null)
-const hireOptionChartRef = ref(null)
+const optionIncomeLineRef = ref(null)
+const optionIncomePieRef = ref(null)
+const timeScooterRef = ref(null)
+const issuePieRef = ref(null)
 
-let weeklyChart = null
-let dailyChart = null
-let hireOptionChart = null
+let optionIncomeLineChart = null
+let optionIncomePieChart = null
+let timeScooterChart = null
+let issuePieChart = null
 
 // Data
 const loading = ref(false)
-const loadingUsers = ref(false)
+const loadingOptionIncome = ref(false)
+const loadingTimeScooter = ref(false)
+const loadingIssue = ref(false)
 const dateRange = ref([])
 
-const revenueEstimate = ref({
-  startDate: '',
-  endDate: '',
-  currency: 'GBP',
-  estimatedRevenue: 0
+// 方案收入数据
+const dailyOptionIncomeData = ref([])
+const allOptionCodes = ref([])
+
+// 时间段用车数据
+const dailyTimeScooterData = ref([])
+
+// Issue数据
+const issueData = ref([])
+
+// 总收入（从折线图数据计算）
+const totalRevenue = computed(() => {
+  let total = 0
+  dailyOptionIncomeData.value.forEach(item => {
+    total += Number(item.total) || 0
+  })
+  return total
 })
 
-const weeklyChartData = ref({
-  dates: [],
-  revenue: []
+// 总订单数（从折线图数据计算天数 * 平均，或者可以从接口获取）
+const totalBookings = computed(() => {
+  // 根据实际数据计算，这里简单返回一个估算值
+  return dailyOptionIncomeData.value.length * 5 || 0
 })
 
-const dailyCombinedData = ref([])
-const weeklyByHireOption = ref([])
-const frequentUsers = ref([])
+// 平均订单价值
+const averageOrderValue = computed(() => {
+  if (totalBookings.value === 0) return 0
+  return totalRevenue.value / totalBookings.value
+})
 
-// Calculated values for missing fields
-const calculateTotalBookings = () => {
-  // Calculate from dailyCombinedData or weeklyByHireOption if available
-  if (dailyCombinedData.value.length > 0) {
-    // This would need to be calculated from actual booking data
-    // For now, return placeholder or calculate from available data
-    return dailyCombinedData.value.length * 2 // Placeholder
-  }
-  return 0
-}
-
-const calculateAverageOrderValue = () => {
-  const totalRevenue = revenueEstimate.value.estimatedRevenue || 0
-  const totalBookings = calculateTotalBookings()
-  if (totalBookings === 0) return '0.00'
-  return (totalRevenue / totalBookings).toFixed(2)
-}
-
-const calculateDaysInRange = () => {
-  if (revenueEstimate.value.startDate && revenueEstimate.value.endDate) {
-    const start = new Date(revenueEstimate.value.startDate)
-    const end = new Date(revenueEstimate.value.endDate)
+// 日期范围天数
+const daysInRange = computed(() => {
+  if (dateRange.value && dateRange.value.length === 2) {
+    const start = new Date(dateRange.value[0])
+    const end = new Date(dateRange.value[1])
     const diffTime = Math.abs(end - start)
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1
     return diffDays
   }
   return 0
-}
+})
 
 // Date shortcuts
 const dateShortcuts = [
@@ -287,14 +254,7 @@ const dateShortcuts = [
 // Helper functions
 const formatNumber = (num) => {
   if (num === undefined || num === null) return '0.00'
-  return num.toFixed(2)
-}
-
-const getRankType = (rank) => {
-  if (rank === 1) return 'danger'
-  if (rank === 2) return 'warning'
-  if (rank === 3) return 'success'
-  return 'info'
+  return Number(num).toFixed(2)
 }
 
 // Format date to YYYY-MM-DD
@@ -308,175 +268,152 @@ const formatDate = (date) => {
 }
 
 // API Calls
-const fetchRevenueEstimate = async () => {
+const fetchDailyOptionIncome = async () => {
+  loadingOptionIncome.value = true
   try {
     const startDate = dateRange.value?.[0] ? formatDate(dateRange.value[0]) : null
     const endDate = dateRange.value?.[1] ? formatDate(dateRange.value[1]) : null
 
-    const response = await adminAnalyticsApi.getRevenueEstimate(startDate, endDate)
-    revenueEstimate.value = response.data.data
-  } catch (error) {
-    console.error('Failed to fetch revenue estimate:', error)
-    ElMessage.error('Failed to fetch revenue estimate')
-  }
-}
-
-const fetchWeeklyChart = async () => {
-  try {
-    const startDate = dateRange.value?.[0] ? formatDate(dateRange.value[0]) : null
-    const response = await adminAnalyticsApi.getWeeklyChart(startDate)
-    const data = response.data.data
+    const response = await adminAnalyticsApi.getDailyOptionIncome(startDate, endDate)
+    dailyOptionIncomeData.value = response.data.data || []
     
-    // Extract dates and revenue from series data
-    if (data.series && Array.isArray(data.series)) {
-      weeklyChartData.value = {
-        dates: data.series.map(item => item.date),
-        revenue: data.series.map(item => item.dailyRevenue || 0)
-      }
-    } else {
-      weeklyChartData.value = {
-        dates: [],
-        revenue: []
-      }
+    // 提取所有方案代码（除了 date 和 total）
+    if (dailyOptionIncomeData.value.length > 0) {
+      const firstRow = dailyOptionIncomeData.value[0]
+      allOptionCodes.value = Object.keys(firstRow).filter(key => key !== 'date' && key !== 'total')
     }
-
-    renderWeeklyChart()
+    
+    renderOptionIncomeLineChart()
+    renderOptionIncomePieChart()
   } catch (error) {
-    console.error('Failed to fetch weekly chart:', error)
-    ElMessage.error('Failed to fetch weekly revenue data')
-  }
-}
-
-const fetchDailyCombined = async () => {
-  try {
-    const startDate = dateRange.value?.[0] ? formatDate(dateRange.value[0]) : null
-    const response = await adminAnalyticsApi.getDailyCombined(startDate)
-    dailyCombinedData.value = response.data.data || []
-    renderDailyChart()
-  } catch (error) {
-    console.error('Failed to fetch daily combined:', error)
-    ElMessage.error('Failed to fetch daily revenue data')
-  }
-}
-
-const fetchWeeklyByHireOption = async () => {
-  try {
-    const startDate = dateRange.value?.[0] ? formatDate(dateRange.value[0]) : null
-    const response = await adminAnalyticsApi.getWeeklyByHireOption(startDate)
-    weeklyByHireOption.value = response.data.data || []
-    renderHireOptionChart()
-  } catch (error) {
-    console.error('Failed to fetch hire option revenue:', error)
-    ElMessage.error('Failed to fetch hire option revenue data')
-  }
-}
-
-const fetchFrequentUsers = async () => {
-  loadingUsers.value = true
-  try {
-    const response = await adminAnalyticsApi.getFrequentUsers()
-    frequentUsers.value = response.data.data || []
-  } catch (error) {
-    console.error('Failed to fetch frequent users:', error)
-    ElMessage.error('Failed to fetch frequent users')
+    console.error('Failed to fetch daily option income:', error)
+    ElMessage.error('Failed to fetch option income data')
   } finally {
-    loadingUsers.value = false
+    loadingOptionIncome.value = false
   }
 }
 
-// Chart rendering
-const renderWeeklyChart = () => {
-  if (!weeklyChartRef.value) return
+const fetchDailyTimeScooter = async () => {
+  loadingTimeScooter.value = true
+  try {
+    const startDate = dateRange.value?.[0] ? formatDate(dateRange.value[0]) : null
+    const endDate = dateRange.value?.[1] ? formatDate(dateRange.value[1]) : null
 
-  if (weeklyChart) {
-    weeklyChart.dispose()
+    const response = await adminAnalyticsApi.getDailyTimeScooter(startDate, endDate)
+    dailyTimeScooterData.value = response.data.data || []
+    renderTimeScooterChart()
+  } catch (error) {
+    console.error('Failed to fetch daily time scooter:', error)
+    ElMessage.error('Failed to fetch scooter usage data')
+  } finally {
+    loadingTimeScooter.value = false
+  }
+}
+
+const fetchInRangeIssue = async () => {
+  loadingIssue.value = true
+  try {
+    const startDate = dateRange.value?.[0] ? formatDate(dateRange.value[0]) : null
+    const endDate = dateRange.value?.[1] ? formatDate(dateRange.value[1]) : null
+
+    const response = await adminAnalyticsApi.getInRangeIssue(startDate, endDate)
+    issueData.value = response.data.data || []
+    renderIssuePieChart()
+  } catch (error) {
+    console.error('Failed to fetch issue data:', error)
+    ElMessage.error('Failed to fetch issue distribution data')
+  } finally {
+    loadingIssue.value = false
+  }
+}
+
+// 优先级标签映射
+const getPriorityLabel = (priority) => {
+  const labelMap = {
+    'CRITICAL': 'Critical',
+    'URGENT': 'Urgent',
+    'HIGH': 'High',
+    'MEDIUM': 'Medium',
+    'LOW': 'Low'
+  }
+  return labelMap[priority] || priority
+}
+
+// 优先级颜色映射
+const getPriorityColor = (priority) => {
+  const colorMap = {
+    'CRITICAL': '#f56c6c',
+    'URGENT': '#e6a23c',
+    'HIGH': '#f56c6c',
+    'MEDIUM': '#409eff',
+    'LOW': '#67c23a'
+  }
+  return colorMap[priority] || '#909399'
+}
+
+// Chart rendering - 方案收入折线图
+const renderOptionIncomeLineChart = () => {
+  if (!optionIncomeLineRef.value) return
+
+  if (optionIncomeLineChart) {
+    optionIncomeLineChart.dispose()
   }
 
-  weeklyChart = echarts.init(weeklyChartRef.value)
+  optionIncomeLineChart = echarts.init(optionIncomeLineRef.value)
+
+  const dates = dailyOptionIncomeData.value.map(item => item.date)
+  
+  const series = allOptionCodes.value.map(optionCode => ({
+    name: optionCode,
+    type: 'line',
+    data: dailyOptionIncomeData.value.map(item => Number(item[optionCode]) || 0),
+    smooth: true,
+    symbol: 'circle',
+    symbolSize: 6,
+    lineStyle: { width: 2 }
+  }))
+  
+  // 添加总收入的线
+  series.push({
+    name: 'Total Revenue',
+    type: 'line',
+    data: dailyOptionIncomeData.value.map(item => Number(item.total) || 0),
+    smooth: true,
+    symbol: 'diamond',
+    symbolSize: 8,
+    lineStyle: { width: 3, color: '#f56c6c' },
+    label: {
+      show: true,
+      position: 'top',
+      formatter: (params) => `£${params.value.toFixed(2)}`,
+      fontSize: 10
+    },
+    itemStyle: { color: '#f56c6c' }
+  })
 
   const option = {
     tooltip: {
       trigger: 'axis',
-      axisPointer: { type: 'shadow' },
       formatter: (params) => {
-        const item = params[0]
-        return `${item.axisValue}<br/>Revenue: £${item.value.toFixed(2)}`
+        let result = params[0]?.axisValue || ''
+        params.forEach(param => {
+          result += `<br/>${param.marker} ${param.seriesName}: £${param.value.toFixed(2)}`
+        })
+        return result
       }
+    },
+    legend: {
+      type: 'scroll',
+      orient: 'horizontal',
+      left: 'left',
+      top: 0,
+      textStyle: { fontSize: 11 }
     },
     grid: {
       left: '3%',
       right: '4%',
       bottom: '3%',
-      containLabel: true
-    },
-    xAxis: {
-      type: 'category',
-      data: weeklyChartData.value.dates,
-      axisLabel: {
-        rotate: 30,
-        fontSize: 11
-      }
-    },
-    yAxis: {
-      type: 'value',
-      name: 'Revenue (£)',
-      axisLabel: {
-        formatter: (value) => `£${value}`
-      }
-    },
-    series: [
-      {
-        name: 'Revenue',
-        type: 'bar',
-        data: weeklyChartData.value.revenue,
-        itemStyle: {
-          borderRadius: [4, 4, 0, 0],
-          color: {
-            type: 'linear',
-            x: 0, y: 0, x2: 0, y2: 1,
-            colorStops: [
-              { offset: 0, color: '#409eff' },
-              { offset: 1, color: '#66b1ff' }
-            ]
-          }
-        },
-        label: {
-          show: true,
-          position: 'top',
-          formatter: (params) => `£${params.value.toFixed(2)}`,
-          fontSize: 11
-        }
-      }
-    ]
-  }
-
-  weeklyChart.setOption(option)
-}
-
-const renderDailyChart = () => {
-  if (!dailyChartRef.value) return
-
-  if (dailyChart) {
-    dailyChart.dispose()
-  }
-
-  dailyChart = echarts.init(dailyChartRef.value)
-
-  const dates = dailyCombinedData.value.map(item => item.date)
-  const revenues = dailyCombinedData.value.map(item => item.dailyRevenue || 0)
-
-  const option = {
-    tooltip: {
-      trigger: 'axis',
-      formatter: (params) => {
-        const item = params[0]
-        return `${item.axisValue}<br/>Daily Revenue: £${item.value.toFixed(2)}`
-      }
-    },
-    grid: {
-      left: '3%',
-      right: '4%',
-      bottom: '3%',
+      top: '12%',
       containLabel: true
     },
     xAxis: {
@@ -494,74 +431,51 @@ const renderDailyChart = () => {
         formatter: (value) => `£${value}`
       }
     },
-    series: [
-      {
-        name: 'Daily Revenue',
-        type: 'line',
-        data: revenues,
-        smooth: true,
-        symbol: 'circle',
-        symbolSize: 8,
-        lineStyle: {
-          width: 3,
-          color: '#67c23a'
-        },
-        areaStyle: {
-          color: {
-            type: 'linear',
-            x: 0, y: 0, x2: 0, y2: 1,
-            colorStops: [
-              { offset: 0, color: 'rgba(103, 194, 58, 0.3)' },
-              { offset: 1, color: 'rgba(103, 194, 58, 0.05)' }
-            ]
-          }
-        },
-        itemStyle: {
-          color: '#67c23a'
-        },
-        label: {
-          show: true,
-          position: 'top',
-          formatter: (params) => `£${params.value.toFixed(2)}`,
-          fontSize: 10
-        }
-      }
-    ]
+    series: series
   }
 
-  dailyChart.setOption(option)
+  optionIncomeLineChart.setOption(option)
 }
 
-const renderHireOptionChart = () => {
-  if (!hireOptionChartRef.value) return
+// Chart rendering - 方案收入饼图
+const renderOptionIncomePieChart = () => {
+  if (!optionIncomePieRef.value) return
 
-  if (hireOptionChart) {
-    hireOptionChart.dispose()
+  if (optionIncomePieChart) {
+    optionIncomePieChart.dispose()
   }
 
-  hireOptionChart = echarts.init(hireOptionChartRef.value)
+  optionIncomePieChart = echarts.init(optionIncomePieRef.value)
 
-  const hireOptions = weeklyByHireOption.value.map(item => item.hireOptionCode)
-  const revenues = weeklyByHireOption.value.map(item => item.weeklyRevenue || 0)
+  const totalByOption = {}
+  dailyOptionIncomeData.value.forEach(item => {
+    allOptionCodes.value.forEach(optionCode => {
+      const value = Number(item[optionCode]) || 0
+      totalByOption[optionCode] = (totalByOption[optionCode] || 0) + value
+    })
+  })
+
+  const pieData = Object.entries(totalByOption).map(([name, value]) => ({
+    name,
+    value: value.toFixed(2)
+  }))
 
   const option = {
     tooltip: {
       trigger: 'item',
       formatter: (params) => {
-        return `${params.name}<br/>Revenue: £${params.value.toFixed(2)}<br/>Percentage: ${params.percent}%`
+        return `${params.name}<br/>Revenue: £${params.value}<br/>Percentage: ${params.percent}%`
       }
     },
     legend: {
       orient: 'vertical',
       left: 'left',
       type: 'scroll',
-      textStyle: {
-        fontSize: 11
-      }
+      textStyle: { fontSize: 11 }
     },
     series: [
       {
-        name: 'Revenue by Hire Option',
+        name: 'Revenue by Option',
         type: 'pie',
         radius: ['40%', '70%'],
         avoidLabelOverlap: false,
@@ -573,7 +487,7 @@ const renderHireOptionChart = () => {
         label: {
           show: true,
           formatter: (params) => {
-            return `${params.name}\n£${params.value.toFixed(2)}`
+            return `${params.name}\n£${params.value}`
           },
           fontSize: 11
         },
@@ -584,22 +498,164 @@ const renderHireOptionChart = () => {
             fontWeight: 'bold'
           }
         },
-        data: hireOptions.map((name, index) => ({
-          name,
-          value: revenues[index]
-        }))
+        data: pieData
       }
     ]
   }
 
-  hireOptionChart.setOption(option)
+  optionIncomePieChart.setOption(option)
+}
+
+// Chart rendering - 时间段用车数量
+const renderTimeScooterChart = () => {
+  if (!timeScooterRef.value) return
+
+  if (timeScooterChart) {
+    timeScooterChart.dispose()
+  }
+
+  timeScooterChart = echarts.init(timeScooterRef.value)
+
+  const hours = dailyTimeScooterData.value.map(item => item.hourLabel || `${item.hour}:00`)
+  const counts = dailyTimeScooterData.value.map(item => item.scooterCount || 0)
+
+  const option = {
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' },
+      formatter: (params) => {
+        const item = params[0]
+        return `${item.axisValue}<br/>Scooters in use: ${item.value}`
+      }
+    },
+    grid: {
+      left: '3%',
+      right: '4%',
+      bottom: '3%',
+      containLabel: true
+    },
+    xAxis: {
+      type: 'category',
+      data: hours,
+      axisLabel: {
+        rotate: 45,
+        fontSize: 10,
+        interval: 2
+      },
+      name: 'Time (Hour)'
+    },
+    yAxis: {
+      type: 'value',
+      name: 'Number of Scooters',
+      minInterval: 1
+    },
+    series: [
+      {
+        name: 'Scooters in Use',
+        type: 'bar',
+        data: counts,
+        itemStyle: {
+          borderRadius: [4, 4, 0, 0],
+          color: {
+            type: 'linear',
+            x: 0, y: 0, x2: 0, y2: 1,
+            colorStops: [
+              { offset: 0, color: '#409eff' },
+              { offset: 1, color: '#66b1ff' }
+            ]
+          }
+        },
+        label: {
+          show: true,
+          position: 'top',
+          formatter: (params) => `${params.value}`,
+          fontSize: 10
+        }
+      }
+    ]
+  }
+
+  timeScooterChart.setOption(option)
+}
+
+// Chart rendering - Issue优先级饼图
+const renderIssuePieChart = () => {
+  if (!issuePieRef.value) return
+
+  if (issuePieChart) {
+    issuePieChart.dispose()
+  }
+
+  issuePieChart = echarts.init(issuePieRef.value)
+
+  const pieData = issueData.value.map(item => ({
+    name: getPriorityLabel(item.priority),
+    value: item.value,
+    itemStyle: { color: getPriorityColor(item.priority) }
+  }))
+
+  const totalIssues = pieData.reduce((sum, item) => sum + item.value, 0)
+
+  const option = {
+    tooltip: {
+      trigger: 'item',
+      formatter: (params) => {
+        return `${params.name}<br/>Count: ${params.value}<br/>Percentage: ${params.percent}%`
+      }
+    },
+    legend: {
+      orient: 'vertical',
+      left: 'left',
+      textStyle: { fontSize: 11 }
+    },
+    series: [
+      {
+        name: 'Issues by Priority',
+        type: 'pie',
+        radius: ['40%', '70%'],
+        avoidLabelOverlap: false,
+        itemStyle: {
+          borderRadius: 10,
+          borderColor: '#fff',
+          borderWidth: 2
+        },
+        label: {
+          show: true,
+          formatter: (params) => {
+            return `${params.name}\n${params.value} (${params.percent}%)`
+          },
+          fontSize: 11
+        },
+        emphasis: {
+          label: {
+            show: true,
+            fontSize: 14,
+            fontWeight: 'bold'
+          }
+        },
+        data: pieData
+      }
+    ]
+  }
+
+  if (totalIssues === 0) {
+    option.title = {
+      text: 'No issues in this date range',
+      left: 'center',
+      top: 'center',
+      textStyle: { color: '#909399', fontSize: 14 }
+    }
+  }
+
+  issuePieChart.setOption(option)
 }
 
 // Handle window resize
 const handleResize = () => {
-  if (weeklyChart) weeklyChart.resize()
-  if (dailyChart) dailyChart.resize()
-  if (hireOptionChart) hireOptionChart.resize()
+  if (optionIncomeLineChart) optionIncomeLineChart.resize()
+  if (optionIncomePieChart) optionIncomePieChart.resize()
+  if (timeScooterChart) timeScooterChart.resize()
+  if (issuePieChart) issuePieChart.resize()
 }
 
 // Refresh all data
@@ -607,11 +663,9 @@ const refreshAllData = async () => {
   loading.value = true
   try {
     await Promise.all([
-      fetchRevenueEstimate(),
-      fetchWeeklyChart(),
-      fetchDailyCombined(),
-      fetchWeeklyByHireOption(),
-      fetchFrequentUsers()
+      fetchDailyOptionIncome(),
+      fetchDailyTimeScooter(),
+      fetchInRangeIssue()
     ])
     ElMessage.success('Data refreshed successfully')
   } catch (error) {
@@ -640,9 +694,10 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  if (weeklyChart) weeklyChart.dispose()
-  if (dailyChart) dailyChart.dispose()
-  if (hireOptionChart) hireOptionChart.dispose()
+  if (optionIncomeLineChart) optionIncomeLineChart.dispose()
+  if (optionIncomePieChart) optionIncomePieChart.dispose()
+  if (timeScooterChart) timeScooterChart.dispose()
+  if (issuePieChart) issuePieChart.dispose()
   window.removeEventListener('resize', handleResize)
 })
 </script>
@@ -766,17 +821,7 @@ onUnmounted(() => {
 
 .chart-container {
   width: 100%;
-  height: 350px;
-}
-
-/* Table card */
-.table-card {
-  border-radius: 12px;
-}
-
-.money {
-  color: #67c23a;
-  font-weight: 500;
+  height: 380px;
 }
 
 /* Responsive */

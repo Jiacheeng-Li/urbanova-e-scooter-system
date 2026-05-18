@@ -4,7 +4,9 @@ import com.lcyhz.urbanova.common.api.ApiResponse;
 import com.lcyhz.urbanova.domain.DomainConstants;
 import com.lcyhz.urbanova.security.AuthContext;
 import com.lcyhz.urbanova.service.AnalyticsService;
+import com.lcyhz.urbanova.service.IssueManagementService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -20,6 +22,9 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class AdminAnalyticsController {
     private final AnalyticsService analyticsService;
+
+    @Autowired
+    private IssueManagementService issueManagementService;
 
     @GetMapping("/revenue/estimate")
     public ApiResponse<Map<String, Object>> revenueEstimate(
@@ -54,5 +59,29 @@ public class AdminAnalyticsController {
     public ApiResponse<List<Map<String, Object>>> frequentUsers() {
         AuthContext.requireRole(DomainConstants.ROLE_MANAGER);
         return ApiResponse.success(analyticsService.frequentUsers());
+    }
+
+    @GetMapping("/usage/daily-option-income")
+    public ApiResponse<List<Map<String, Object>>> dailyOptionIncome(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        AuthContext.requireRole(DomainConstants.ROLE_MANAGER);
+        return ApiResponse.success(analyticsService.dailyOptionIncome(startDate, endDate));
+    }
+
+    @GetMapping("/usage/daily-time-scooter")
+    public ApiResponse<List<Map<String, Object>>> dailyTimeScooter(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        AuthContext.requireRole(DomainConstants.ROLE_MANAGER);
+        return ApiResponse.success(analyticsService.dailyTimeScooter(startDate, endDate));
+    }
+
+    @GetMapping("/usage/in-range-issue")
+    public ApiResponse<List<Map<String, Object>>> inRangeIssue(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        AuthContext.requireRole(DomainConstants.ROLE_MANAGER);
+        return ApiResponse.success(issueManagementService.inRangeIssue(startDate, endDate));
     }
 }

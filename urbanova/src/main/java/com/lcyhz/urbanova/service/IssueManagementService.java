@@ -28,13 +28,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
 @Service
 public class IssueManagementService {
@@ -489,5 +485,48 @@ public class IssueManagementService {
     }
 
     public record PhotoDownload(String fileName, String contentType, ByteArrayResource resource) {
+    }
+
+    public List<Map<String, Object>> inRangeIssue(LocalDate startDate, LocalDate endDate) {
+        // 设置默认日期范围（如果没有传入，默认最近30天）
+        LocalDate resolvedStart = startDate == null ? LocalDate.now().minusDays(30) : startDate;
+        LocalDate resolvedEnd = endDate == null ? LocalDate.now() : endDate;
+
+        // 转换为 LocalDateTime 用于查询
+        LocalDateTime startAt = resolvedStart.atStartOfDay();
+        LocalDateTime endAt = resolvedEnd.plusDays(1).atStartOfDay();
+
+        // 查询创建时间在指定范围内的所有 issue
+        List<IssueEntity> issues = issueMapper.selectList(new LambdaQueryWrapper<IssueEntity>()
+                .ge(IssueEntity::getCreatedAt, startAt)
+                .lt(IssueEntity::getCreatedAt, endAt));
+
+        // 使用常量初始化优先级统计 Map
+        Map<String, Integer> priorityCount = new LinkedHashMap<>();
+        priorityCount.put(DomainConstants.IssuePriority.CRITICAL, 0);
+        priorityCount.put(DomainConstants.IssuePriority.URGENT, 0);
+        priorityCount.put(DomainConstants.IssuePriority.HIGH, 0);
+        priorityCount.put(DomainConstants.IssuePriority.MEDIUM, 0);
+        priorityCount.put(DomainConstants.IssuePriority.LOW, 0);
+
+        // 遍历结果集，统计每个优先级的数量
+        for (IssueEntity issue : issues) {
+            String priority = issue.getPriority();
+            if (priority != null && priorityCount.containsKey(priority)) {
+                priorityCount.put(priority, priorityCount.get(priority) + 1);
+            }
+        }
+
+        // 构建适合前端饼图渲染的格式
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Map.Entry<String, Integer> entry : priorityCount.entrySet()) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("priority", entry.getKey());
+            item.put("label", entry.getKey());
+            item.put("value", entry.getValue());
+            result.add(item);
+        }
+
+        return result;
     }
 }

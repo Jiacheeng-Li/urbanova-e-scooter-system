@@ -217,6 +217,29 @@ export const adminAnalyticsApi = {
   // 高频用户列表
   getFrequentUsers() {
     return api.get('/admin/analytics/usage/frequent-users')
+  },
+    // 新增：获取各租赁选项的每日收入（折线图数据）
+  getDailyOptionIncome(startDate, endDate) {
+    const params = {}
+    if (startDate) params.startDate = startDate
+    if (endDate) params.endDate = endDate
+    return api.get('/admin/analytics/usage/daily-option-income', { params })
+  },
+
+  // 新增：获取按小时统计的用车数量（柱状图数据）
+  getDailyTimeScooter(startDate, endDate) {
+    const params = {}
+    if (startDate) params.startDate = startDate
+    if (endDate) params.endDate = endDate
+    return api.get('/admin/analytics/usage/daily-time-scooter', { params })
+  },
+
+  // 新增：获取日期范围内的Issue优先级分布（饼图数据）
+  getInRangeIssue(startDate, endDate) {
+    const params = {}
+    if (startDate) params.startDate = startDate
+    if (endDate) params.endDate = endDate
+    return api.get('/admin/analytics/usage/in-range-issue', { params })
   }
 }
 
